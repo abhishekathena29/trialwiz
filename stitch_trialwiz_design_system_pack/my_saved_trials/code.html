@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Saved Trials - TrialWiz</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "inverse-on-surface": "#f6edff",
+                      "surface-dim": "#e1d4fd",
+                      "primary-container": "#7a2fd0",
+                      "inverse-surface": "#342b4b",
+                      "surface-container-lowest": "#ffffff",
+                      "on-primary-fixed": "#2a0054",
+                      "on-tertiary-fixed-variant": "#8a005f",
+                      "on-tertiary-container": "#ffc5df",
+                      "surface-container-high": "#eee4ff",
+                      "error": "#ba1a1a",
+                      "on-surface": "#1f1635",
+                      "surface": "#fef7ff",
+                      "secondary-container": "#fa7063",
+                      "on-secondary": "#ffffff",
+                      "on-tertiary-fixed": "#3d0027",
+                      "background": "#fef7ff",
+                      "on-surface-variant": "#4b4454",
+                      "outline": "#7d7385",
+                      "on-error": "#ffffff",
+                      "on-secondary-fixed-variant": "#891d18",
+                      "outline-variant": "#cec2d6",
+                      "surface-container-highest": "#e9ddff",
+                      "on-background": "#1f1635",
+                      "surface-container": "#f3eaff",
+                      "primary-fixed-dim": "#d9b9ff",
+                      "primary": "#6100b6",
+                      "on-primary": "#ffffff",
+                      "surface-tint": "#7c32d2",
+                      "on-primary-fixed-variant": "#6303b9",
+                      "inverse-primary": "#d9b9ff",
+                      "on-tertiary": "#ffffff",
+                      "surface-variant": "#e9ddff",
+                      "secondary": "#aa352d",
+                      "secondary-fixed": "#ffdad5",
+                      "tertiary-fixed-dim": "#ffafd5",
+                      "on-secondary-container": "#6c0507",
+                      "tertiary-container": "#a72276",
+                      "tertiary": "#86005c",
+                      "error-container": "#ffdad6",
+                      "tertiary-fixed": "#ffd8e8",
+                      "on-secondary-fixed": "#410002",
+                      "on-primary-container": "#e4cbff",
+                      "on-error-container": "#93000a",
+                      "surface-container-low": "#f8f1ff",
+                      "secondary-fixed-dim": "#ffb4aa",
+                      "surface-bright": "#fef7ff",
+                      "primary-fixed": "#eedcff"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "card-padding": "20px",
+                      "container-margin": "20px",
+                      "stack-gap": "24px",
+                      "touch-target-min": "48px",
+                      "unit": "4px"
+              },
+              "fontFamily": {
+                      "stat-lg": [
+                              "Inter"
+                      ],
+                      "display-hero": [
+                              "Inter"
+                      ],
+                      "label-caps": [
+                              "Inter"
+                      ],
+                      "headline-lg": [
+                              "Inter"
+                      ],
+                      "body-md": [
+                              "Inter"
+                      ],
+                      "headline-lg-mobile": [
+                              "Inter"
+                      ]
+              },
+              "fontSize": {
+                      "stat-lg": [
+                              "32px",
+                              {
+                                      "lineHeight": "32px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "display-hero": [
+                              "40px",
+                              {
+                                      "lineHeight": "48px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "label-caps": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "letterSpacing": "0.1em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "headline-lg": [
+                              "28px",
+                              {
+                                      "lineHeight": "34px",
+                                      "letterSpacing": "-0.01em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "body-md": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "headline-lg-mobile": [
+                              "24px",
+                              {
+                                      "lineHeight": "30px",
+                                      "fontWeight": "600"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+      </script>
+<style>
+        .hero_gradient {
+            background: linear-gradient(135deg, #6100b6 0%, #a72276 100%);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background font-body-md min-h-screen pb-24 md:pb-0 flex flex-col items-center">
+<!-- TopAppBar -->
+<header class="w-full top-0 sticky bg-surface dark:bg-on-background shadow-sm z-40 max-w-[1140px] mx-auto md:px-0">
+<div class="flex items-center justify-between px-container-margin h-touch-target-min w-full">
+<div class="flex items-center gap-2 text-primary dark:text-primary-fixed-dim hover:opacity-80 transition-opacity active:scale-95 transition-transform cursor-pointer">
+<span class="material-symbols-outlined" data-icon="clinical_notes">clinical_notes</span>
+</div>
+<h1 class="font-display-hero text-headline-lg-mobile md:text-display-hero bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary-container">TrialWiz</h1>
+<div class="flex items-center hover:opacity-80 transition-opacity active:scale-95 transition-transform cursor-pointer">
+<img alt="User profile avatar" class="w-8 h-8 rounded-full object-cover border-2 border-surface-container-highest" data-alt="A small, circular avatar portrait of a friendly individual with a warm smile, set against a soft, light-mode background. The lighting is flattering and natural, emphasizing approachability and trust within a healthcare context." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA-n3pF5_bS-PtVPDDIq1mmY-G-Nr5fhuaJDGSBvAJUGkgdVSO2umxtUZvx9cmfmGpuDfWpQuZitsA4hALNp4ezlL_uw29LXzgH8D7EBgXNZvI4XC61-kK60LNMDjwurBXYpDHTA2BBB0gse2joRIpXAso89Vw87wcvFQXjyxZpvUv_iqANAl6qCe_NgRgGBIyhu3Bf8a1Zo9e3Hzwu9Tvo13o--Z5zcOSKaIw6StXnAwo0AXgsWudJ"/>
+</div>
+</div>
+</header>
+<main class="w-full max-w-[1140px] px-container-margin md:px-0 mt-stack-gap flex-grow">
+<!-- Hero Section -->
+<section class="hero_gradient rounded-xl p-card-padding mb-stack-gap shadow-[0px_4px_20px_rgba(42,33,64,0.05)] text-on-primary">
+<h2 class="font-stat-lg text-stat-lg mb-2">3 Trials Saved</h2>
+<p class="font-body-md text-body-md opacity-90">Keep track of your active considerations and upcoming steps.</p>
+</section>
+<!-- Saved Trials List -->
+<div class="flex flex-col gap-stack-gap">
+<!-- Card 1 -->
+<article class="bg-surface-container-lowest rounded-xl p-card-padding shadow-[0px_4px_20px_rgba(42,33,64,0.05)] relative hover:opacity-80 transition-opacity active:scale-95 transition-transform cursor-pointer border border-surface-variant">
+<div class="absolute top-card-padding right-card-padding bg-surface-container rounded-full p-2 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="bookmark" style="font-variation-settings: 'FILL' 1;">bookmark</span>
+</div>
+<div class="inline-block bg-surface-tint text-on-primary px-3 py-1 rounded-full font-label-caps text-label-caps mb-4">
+                    RECRUITING
+                </div>
+<h3 class="font-headline-lg-mobile text-headline-lg-mobile md:font-headline-lg md:text-headline-lg text-on-surface mb-2 pr-12">Pembrolizumab in Non-Small Cell Lung Cancer</h3>
+<div class="flex items-center text-on-surface-variant font-body-md text-body-md gap-2">
+<span class="material-symbols-outlined text-sm" data-icon="location_on">location_on</span>
+<span>Memorial Sloan Kettering</span>
+</div>
+</article>
+<!-- Card 2 -->
+<article class="bg-surface-container-lowest rounded-xl p-card-padding shadow-[0px_4px_20px_rgba(42,33,64,0.05)] relative hover:opacity-80 transition-opacity active:scale-95 transition-transform cursor-pointer border border-surface-variant">
+<div class="absolute top-card-padding right-card-padding bg-surface-container rounded-full p-2 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="bookmark" style="font-variation-settings: 'FILL' 1;">bookmark</span>
+</div>
+<div class="inline-block bg-surface-tint text-on-primary px-3 py-1 rounded-full font-label-caps text-label-caps mb-4">
+                    RECRUITING
+                </div>
+<h3 class="font-headline-lg-mobile text-headline-lg-mobile md:font-headline-lg md:text-headline-lg text-on-surface mb-2 pr-12">Targeted Therapy for Advanced Melanoma</h3>
+<div class="flex items-center text-on-surface-variant font-body-md text-body-md gap-2">
+<span class="material-symbols-outlined text-sm" data-icon="location_on">location_on</span>
+<span>Dana-Farber Cancer Institute</span>
+</div>
+</article>
+<!-- Card 3 -->
+<article class="bg-surface-container-lowest rounded-xl p-card-padding shadow-[0px_4px_20px_rgba(42,33,64,0.05)] relative hover:opacity-80 transition-opacity active:scale-95 transition-transform cursor-pointer border border-surface-variant">
+<div class="absolute top-card-padding right-card-padding bg-surface-container rounded-full p-2 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" data-icon="bookmark" style="font-variation-settings: 'FILL' 1;">bookmark</span>
+</div>
+<div class="inline-block bg-surface-tint text-on-primary px-3 py-1 rounded-full font-label-caps text-label-caps mb-4">
+                    RECRUITING
+                </div>
+<h3 class="font-headline-lg-mobile text-headline-lg-mobile md:font-headline-lg md:text-headline-lg text-on-surface mb-2 pr-12">Immunotherapy Phase II Trial</h3>
+<div class="flex items-center text-on-surface-variant font-body-md text-body-md gap-2">
+<span class="material-symbols-outlined text-sm" data-icon="location_on">location_on</span>
+<span>MD Anderson Cancer Center</span>
+</div>
+</article>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 rounded-t-xl bg-surface-container dark:bg-inverse-surface shadow-[0px_-4px_20px_rgba(42,33,64,0.05)] md:hidden">
+<div class="flex justify-around items-center h-16 px-4">
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:bg-surface-container-high transition-colors active:scale-90 transition-transform duration-200">
+<span class="material-symbols-outlined mb-1" data-icon="home">home</span>
+<span class="font-label-caps text-label-caps">Home</span>
+</button>
+<button class="flex flex-col items-center justify-center bg-primary-container text-on-primary-container rounded-full px-4 py-1 hover:bg-surface-container-high transition-colors active:scale-90 transition-transform duration-200">
+<span class="material-symbols-outlined mb-1" data-icon="bookmark">bookmark</span>
+<span class="font-label-caps text-label-caps">Saved</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:bg-surface-container-high transition-colors active:scale-90 transition-transform duration-200">
+<span class="material-symbols-outlined mb-1" data-icon="person">person</span>
+<span class="font-label-caps text-label-caps">Profile</span>
+</button>
+</div>
+</nav>
+</body></html>

@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TrialWiz — Trial Finder</title>
+<style>
+  :root{
+    --ink:#2a2140; --ink2:#4a4160; --muted:#7c7488;
+    --bg:#f6f3f7; --card:#ffffff; --line:#e9e3ee;
+    --brand:#7a2fd0; --brand-d:#6423b8; --brand-dd:#4e1e8a;
+    --wash:#f1e9fa; --wash2:#f8f4fc;
+    --accent:#f26a5d; --accent-w:#fdeeec;
+    --stale:#b0722a; --stale-w:#f7efe0;
+    --grad:linear-gradient(135deg,#f26a5d 0%,#c43c8e 52%,#7a2fd0 100%);
+    --sh-sm:0 1px 2px rgba(26,52,60,.05);
+    --sh:0 2px 8px rgba(26,52,60,.06),0 12px 30px rgba(26,52,60,.06);
+    --sh-lg:0 10px 40px rgba(26,70,83,.16);
+    --r:18px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:920px;margin:0 auto;padding:0 16px 130px}
+  button{font-family:inherit}
+
+  header.top{position:sticky;top:0;z-index:30;background:rgba(243,241,236,.9);
+    backdrop-filter:saturate(180%) blur(10px);border-bottom:1px solid var(--line)}
+  .top-inner{max-width:920px;margin:0 auto;padding:11px 16px;display:flex;align-items:center;gap:11px}
+  .logo{width:36px;height:36px;border-radius:11px;flex:0 0 auto;display:grid;place-items:center;
+    background:var(--grad);box-shadow:var(--sh-sm)}
+  .logo svg{width:20px;height:20px}
+  .brand h1{font-size:15.5px;margin:0;font-weight:750;letter-spacing:-.2px}
+  .brand p{font-size:11px;margin:0;color:var(--muted)}
+  .modebadge{margin-left:auto;font-size:10.5px;font-weight:650;padding:4px 9px;border-radius:20px;
+    border:1px solid var(--line);color:var(--muted);white-space:nowrap;background:#fff}
+  .modebadge.on{background:var(--wash);color:var(--brand-d);border-color:#c4dee1}
+
+  .tabs{display:flex;gap:5px;margin:16px 0 0;background:#fff;border:1px solid var(--line);border-radius:14px;padding:5px;box-shadow:var(--sh-sm)}
+  .tab{flex:1;text-align:center;padding:10px 8px;border-radius:10px;font-size:13.5px;font-weight:650;color:var(--muted);cursor:pointer;border:none;background:none;transition:.15s}
+  .tab.active{background:var(--brand);color:#fff;box-shadow:0 4px 12px rgba(122,47,208,.28)}
+
+  /* location bar */
+  .locbar{margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:13px 14px;box-shadow:var(--sh-sm)}
+  .locrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .locbtn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--brand);background:var(--wash);color:var(--brand-d);
+    font-weight:680;font-size:13.5px;padding:10px 13px;border-radius:11px;cursor:pointer;white-space:nowrap;transition:.14s}
+  .locbtn:hover{background:#dcecee}
+  .locbtn.active{background:var(--brand);color:#fff}
+  .locbtn svg{width:15px;height:15px}
+  .ordiv{color:var(--muted);font-size:12px;font-weight:600}
+  .cityin{flex:1;min-width:130px}
+  .cityin input{width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:11px;font-size:14.5px;background:#fff;color:var(--ink)}
+  .cityin input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px var(--wash)}
+  .allin{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink2);cursor:pointer;white-space:nowrap;font-weight:600}
+  .allin input{width:16px;height:16px;accent-color:var(--brand)}
+  .radrow{display:flex;align-items:center;gap:12px;margin-top:12px;padding-top:12px;border-top:1px dashed var(--line);transition:.2s}
+  .radrow.off{opacity:.45}
+  .radrow label{font-size:11px;font-weight:750;color:var(--ink2);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+  .radrow .rv{color:var(--brand-d)}
+  .radrow input[type=range]{flex:1;accent-color:var(--brand)}
+  .radrow input[type=range]:disabled{cursor:not-allowed}
+  .locmsg{font-size:11.5px;color:var(--accent);margin-top:9px;font-weight:600;display:none}
+  .locmsg.show{display:block}
+
+  .hero{margin-top:16px;border-radius:22px;padding:24px 22px;color:#fff;position:relative;overflow:hidden;
+    background:var(--grad);box-shadow:var(--sh-lg)}
+  .hero::after{content:"";position:absolute;right:-40px;top:-40px;width:220px;height:220px;border-radius:50%;background:rgba(255,255,255,.06)}
+  .hero::before{content:"";position:absolute;right:40px;bottom:-70px;width:160px;height:160px;border-radius:50%;background:rgba(255,255,255,.05)}
+  .hero .big{font-size:50px;font-weight:820;letter-spacing:-1.5px;line-height:1;position:relative}
+  .hero .sub{font-size:14px;opacity:.93;margin-top:8px;position:relative;max-width:82%}
+  .hero .whereline{font-size:12px;opacity:.82;margin-top:13px;position:relative}
+  .hero .synced{font-size:11px;opacity:.7;margin-top:6px;position:relative}
+
+  .seg{display:flex;gap:6px;margin-top:18px;background:#fff;border:1px solid var(--line);border-radius:13px;padding:5px;box-shadow:var(--sh-sm)}
+  .seg>button{flex:1;padding:9px 6px;border:none;background:none;border-radius:9px;font-size:13px;font-weight:650;color:var(--muted);cursor:pointer;transition:.15s}
+  .seg>button.on{background:var(--wash);color:var(--brand-d)}
+
+  .grouprow{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;align-items:center}
+  .gbtn{display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:#fff;border-radius:12px;padding:9px 14px;font-size:13.5px;font-weight:680;color:var(--ink2);cursor:pointer;box-shadow:var(--sh-sm)}
+  .gbtn.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .gbtn .gb{background:rgba(255,255,255,.25);border-radius:20px;padding:1px 8px;font-size:12px;font-weight:750}
+  .gbtn:not(.on) .gb{background:var(--wash);color:var(--brand-d)}
+  .sysdrop{margin-left:auto}
+  select.sys{border:1px solid var(--line);background:#fff;border-radius:11px;padding:9px 12px;font-size:13.5px;color:var(--ink);font-weight:600;cursor:pointer}
+  select.sys:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px var(--wash)}
+
+  .sechead{display:flex;align-items:baseline;justify-content:space-between;margin:18px 4px 9px}
+  .sechead h2{font-size:14px;margin:0;font-weight:750;text-transform:uppercase;letter-spacing:.05em;color:var(--ink2)}
+  .sechead .cnt{font-size:12px;color:var(--muted);font-weight:600}
+  .syshead{font-size:12px;font-weight:750;color:var(--brand-d);text-transform:uppercase;letter-spacing:.05em;margin:16px 4px 8px}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:11px}
+  .tile{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:14px;cursor:pointer;transition:.16s;box-shadow:var(--sh-sm);text-align:left;position:relative}
+  .tile:hover{transform:translateY(-2px);box-shadow:var(--sh);border-color:#cfe0e2}
+  .tile .nm{font-size:14px;font-weight:680;color:var(--ink);line-height:1.3;padding-right:6px}
+  .tile .badge{display:inline-flex;align-items:baseline;gap:3px;margin-top:11px;background:var(--wash);color:var(--brand-d);border-radius:20px;padding:4px 11px;font-weight:750;font-size:13px}
+  .tile .badge span{font-size:10px;font-weight:600;opacity:.8}
+  .tile .arrow{position:absolute;right:12px;bottom:13px;color:#c2d6d8;font-size:15px}
+  .tile.zero{opacity:.5;cursor:default}
+  .tile.zero:hover{transform:none;box-shadow:var(--sh-sm);border-color:var(--line)}
+  .tile.zero .badge{background:#eef0ec;color:var(--muted)}
+
+  .clist{display:flex;flex-direction:column;gap:9px}
+  .crow{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 15px;cursor:pointer;transition:.15s;box-shadow:var(--sh-sm)}
+  .crow:hover{border-color:#cfe0e2;box-shadow:var(--sh)}
+  .crow .ci{width:38px;height:38px;border-radius:11px;flex:0 0 auto;display:grid;place-items:center;background:var(--wash);color:var(--brand-d);font-weight:750;font-size:14px}
+  .crow .cn{flex:1;min-width:0}
+  .crow .cn b{font-size:14px;font-weight:680;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .crow .cn span{font-size:11.5px;color:var(--muted)}
+  .crow .cb{background:var(--wash);color:var(--brand-d);border-radius:20px;padding:5px 12px;font-weight:750;font-size:13.5px;flex:0 0 auto}
+
+  .searchcard{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:var(--sh-sm)}
+  .field{margin-bottom:13px}.field:last-child{margin-bottom:0}
+  .lab{display:block;font-size:11px;font-weight:750;color:var(--ink2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em}
+  .chips{display:flex;gap:7px;flex-wrap:wrap}
+  .chip{padding:8px 13px;border:1px solid var(--line);border-radius:22px;font-size:13.5px;background:#fff;color:var(--ink2);cursor:pointer;user-select:none;transition:.12s}
+  .chip.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .searchcard input[type=text]{width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:11px;font-size:14.5px}
+  .searchcard input[type=text]:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px var(--wash)}
+  .go{width:100%;margin-top:4px;padding:13px;border:none;border-radius:12px;background:var(--grad);color:#fff;font-size:15.5px;font-weight:720;cursor:pointer;box-shadow:0 6px 16px rgba(122,47,208,.28)}
+  .go:active{transform:translateY(1px)}
+
+  .back{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--line);border-radius:11px;padding:8px 13px;font-size:13px;font-weight:650;color:var(--ink2);cursor:pointer;margin-top:16px;box-shadow:var(--sh-sm)}
+  .back:hover{border-color:#cfe0e2}
+  .listhead{margin:14px 4px 8px}
+  .listhead h2{font-size:19px;margin:0 0 3px;font-weight:770;letter-spacing:-.3px}
+  .listhead p{font-size:13px;color:var(--muted);margin:0}
+  .listhead .n{color:var(--brand-d);font-weight:750}
+
+  .results{display:flex;flex-direction:column;gap:13px;margin-top:12px}
+  .trial{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:var(--sh-sm);position:relative;transition:.15s}
+  .trial:hover{box-shadow:var(--sh)}
+  .trial.stale{opacity:.76}
+  .src{position:absolute;top:15px;right:15px;font-size:10px;color:var(--muted);font-family:ui-monospace,Menlo,monospace}
+  .headline{font-size:16px;font-weight:720;margin:0 0 11px;line-height:1.34;padding-right:96px}
+  .site{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px;margin-bottom:3px}
+  .site .fac{font-weight:700}
+  .dist{font-size:11.5px;color:var(--brand-d);font-weight:750;background:var(--wash);padding:2px 9px;border-radius:20px}
+  .contact{font-size:13.5px;color:var(--ink2);margin:7px 0 11px}
+  .contact a{color:var(--brand-d);text-decoration:none;font-weight:650}
+  .why{background:var(--wash2);border:1px solid var(--wash);border-radius:11px;padding:9px 12px;font-size:12.5px;color:var(--ink2);margin-bottom:11px}
+  .why b{color:var(--ink)}
+  .meta{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-bottom:13px}
+  .meta .fresh{color:var(--brand-d);font-weight:650}
+  .meta .fresh.old{color:var(--stale)}
+  .acts{display:flex;gap:8px;flex-wrap:wrap}
+  .btn{flex:1;min-width:110px;text-align:center;padding:11px 10px;border-radius:11px;font-size:13px;font-weight:700;text-decoration:none;cursor:pointer;border:1px solid var(--line);background:#fff;color:var(--ink)}
+  .btn.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .btn:hover{border-color:#cfe0e2}.btn.primary:hover{background:var(--brand-d)}
+
+  .empty{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:26px 20px;text-align:center;color:var(--muted);font-size:14px;box-shadow:var(--sh-sm)}
+  .empty b{color:var(--ink2)}
+
+  .stat-row{display:flex;gap:11px;margin-bottom:6px}
+  .stat{flex:1;background:var(--card);border:1px solid var(--line);border-radius:15px;padding:15px;box-shadow:var(--sh-sm)}
+  .stat .n{font-size:27px;font-weight:820;color:var(--brand-d);letter-spacing:-.6px}
+  .stat .l{font-size:10.5px;color:var(--muted);font-weight:650;text-transform:uppercase;letter-spacing:.04em}
+  .barsec h3{font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink2);margin:18px 4px 9px}
+  .bar{display:flex;align-items:center;gap:10px;margin-bottom:7px;font-size:13px}
+  .bar .k{width:135px;flex:0 0 auto;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bar .track{flex:1;background:#e7e9e3;border-radius:7px;height:16px;overflow:hidden}
+  .bar .fill{height:100%;background:linear-gradient(90deg,var(--brand),var(--brand-d));border-radius:7px}
+  .bar .v{width:30px;flex:0 0 auto;text-align:right;font-weight:750;color:var(--ink)}
+  .note{font-size:12.5px;color:var(--muted);background:var(--card);border:1px dashed #d4ddd7;border-radius:13px;padding:13px 15px;margin-top:16px;line-height:1.6}
+  .note b{color:var(--ink2)}
+  code{background:#e7e9e3;padding:1px 5px;border-radius:5px;font-size:.9em}
+
+  footer.disc{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);font-size:10.5px;color:var(--muted);padding:9px 16px;text-align:center;line-height:1.4;z-index:20}
+  footer.disc b{color:var(--ink2)}
+  .hidden{display:none}
+  @media(max-width:520px){.hero .big{font-size:44px}.hero .sub{max-width:100%}.headline{padding-right:70px}.sysdrop{margin-left:0;width:100%}select.sys{width:100%}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-inner">
+    <div class="logo"><svg viewBox="0 0 24 24" fill="none"><path d="M9.6 4h4.8v5.2H19.6v4.8H14.4V19H9.6v-5H4.4V9.2H9.6z" fill="#fff" fill-opacity=".95"/><circle cx="12" cy="9.4" r="1.55" fill="#c43c8e"/></svg></div>
+    <div class="brand"><h1>TrialWiz&nbsp;·&nbsp;Trial Finder</h1><p>Recruiting cancer trials in India — plain language, near your patient</p></div>
+    <span id="modebadge" class="modebadge">on-device</span>
+  </div>
+</header>
+
+<div class="wrap">
+  <section id="panel-find">
+    <div class="locbar">
+      <div class="locrow">
+        <button class="locbtn" id="locbtn" onclick="requestLocation()">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10Z" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="11" r="2.4" stroke="currentColor" stroke-width="1.7"/></svg>
+          <span id="locbtnlabel">Use my location</span>
+        </button>
+        <span class="ordiv">or</span>
+        <span class="cityin"><input list="citylist" id="city" type="text" placeholder="type a city…" autocomplete="off" oninput="onCity()"/></span>
+        <datalist id="citylist"></datalist>
+        <label class="allin"><input type="checkbox" id="allindia" onchange="onScope()"/> All&nbsp;India</label>
+      </div>
+      <div class="radrow off" id="radrow">
+        <label>Within <span class="rv" id="radval">300</span> km of <span id="radof">your current location</span></label>
+        <input type="range" id="rad" min="25" max="1500" step="25" value="300" disabled oninput="document.getElementById('radval').textContent=this.value;onScope()"/>
+      </div>
+      <div class="locmsg" id="locmsg"></div>
+    </div>
+
+    <div class="hero">
+      <div class="big" id="heroBig">—</div>
+      <div class="sub" id="heroSub">recruiting cancer trials, ready to browse and share.</div>
+      <div class="whereline" id="heroWhere"></div>
+      <div class="synced" id="heroSync">🗂 Trial data updated 03:00 today · refreshes automatically every night</div>
+    </div>
+
+    <div class="seg">
+      <button id="seg-cancer" class="on" onclick="setSeg('cancer')">By cancer type</button>
+      <button id="seg-centre" onclick="setSeg('centre')">By centre</button>
+      <button id="seg-search" onclick="setSeg('search')">Search</button>
+    </div>
+    <div id="browseArea"></div>
+  </section>
+
+</div>
+
+<footer class="disc"><b>An information directory of publicly registered clinical trials.</b> It does not determine eligibility or give medical advice, and is not a substitute for the treating doctor. Only the trial investigator at the site can determine eligibility.</footer>
+
+<script>
+/* ===== reference data ===== */
+const CITIES={
+ "Delhi":[28.6139,77.2090],"New Delhi":[28.6139,77.2090],"Gurugram":[28.4595,77.0266],"Noida":[28.5355,77.3910],
+ "Mumbai":[19.0760,72.8777],"Navi Mumbai":[19.0330,73.0297],"Pune":[18.5204,73.8567],"Bengaluru":[12.9716,77.5946],
+ "Chennai":[13.0827,80.2707],"Hyderabad":[17.3850,78.4867],"Kolkata":[22.5726,88.3639],"Ahmedabad":[23.0225,72.5714],
+ "Jaipur":[26.9124,75.7873],"Lucknow":[26.8467,80.9462],"Chandigarh":[30.7333,76.7794],"Indore":[22.7196,75.8577],
+ "Bhopal":[23.2599,77.4126],"Nagpur":[21.1458,79.0882],"Raipur":[21.2514,81.6296],"Kochi":[9.9312,76.2673],
+ "Thiruvananthapuram":[8.5241,76.9366],"Patna":[25.5941,85.1376],"Guwahati":[26.1445,91.7362],"Varanasi":[25.3176,82.9739]
+};
+/* cancer type -> body system; Haematology = blood group, else solid */
+const SYS={
+ "Lung cancer":"Thoracic","Mesothelioma":"Thoracic",
+ "Oesophageal cancer":"Gastrointestinal","Gastric cancer":"Gastrointestinal","Colorectal cancer":"Gastrointestinal","Liver cancer":"Gastrointestinal","Pancreatic cancer":"Gastrointestinal",
+ "Prostate cancer":"Genitourinary","Bladder cancer":"Genitourinary","Kidney cancer":"Genitourinary",
+ "Ovarian cancer":"Gynaecological","Cervical cancer":"Gynaecological","Endometrial cancer":"Gynaecological",
+ "Breast cancer":"Breast",
+ "Head & neck cancer":"Head & neck","Oral cancer":"Head & neck",
+ "Melanoma":"Skin",
+ "Glioblastoma":"CNS",
+ "Sarcoma":"Sarcoma",
+ "Leukaemia":"Haematology","Lymphoma":"Haematology","Multiple myeloma":"Haematology"
+};
+const CANCERS=Object.keys(SYS);
+const SOLID_SYSTEMS=["Thoracic","Gastrointestinal","Genitourinary","Gynaecological","Breast","Head & neck","Skin","CNS","Sarcoma"];
+const groupOf=c=>SYS[c]==="Haematology"?"blood":"solid";
+
+const CENTRES=[
+ {n:"AIIMS, New Delhi",c:"Delhi",lat:28.5672,lon:77.2100,ph:"+91-11-2658-8500"},
+ {n:"Rajiv Gandhi Cancer Institute",c:"Delhi",lat:28.7195,lon:77.1230,ph:"+91-11-4702-2222"},
+ {n:"Medanta – The Medicity",c:"Gurugram",lat:28.4407,lon:77.0410,ph:"+91-124-4141-414"},
+ {n:"Tata Memorial Hospital",c:"Mumbai",lat:19.0048,lon:72.8430,ph:"+91-22-2417-7000"},
+ {n:"Tata Memorial Centre – ACTREC",c:"Navi Mumbai",lat:19.0330,lon:73.0297,ph:"+91-22-2740-5000"},
+ {n:"Kidwai Memorial Institute of Oncology",c:"Bengaluru",lat:12.9490,lon:77.5730,ph:"+91-80-2609-4000"},
+ {n:"HCG Cancer Centre",c:"Bengaluru",lat:12.9870,lon:77.5910,ph:"+91-80-4020-6000"},
+ {n:"Cancer Institute (WIA), Adyar",c:"Chennai",lat:13.0067,lon:80.2560,ph:"+91-44-2491-1526"},
+ {n:"Basavatarakam Indo-American Cancer Hospital",c:"Hyderabad",lat:17.4180,lon:78.4110,ph:"+91-40-2355-1235"},
+ {n:"Tata Medical Center",c:"Kolkata",lat:22.5760,lon:88.4200,ph:"+91-33-6605-7000"},
+ {n:"PGIMER",c:"Chandigarh",lat:30.7650,lon:76.7750,ph:"+91-172-274-6018"},
+ {n:"Gujarat Cancer & Research Institute",c:"Ahmedabad",lat:23.0500,lon:72.6100,ph:"+91-79-2268-8000"},
+ {n:"SMS Medical College",c:"Jaipur",lat:26.9000,lon:75.8100,ph:"+91-141-256-0291"},
+ {n:"Regional Cancer Centre",c:"Thiruvananthapuram",lat:8.5150,lon:76.9430,ph:"+91-471-244-2541"},
+ {n:"Homi Bhabha Cancer Hospital",c:"Varanasi",lat:25.2800,lon:82.9800,ph:"+91-542-250-1300"},
+ {n:"Dr B. Borooah Cancer Institute",c:"Guwahati",lat:26.1600,lon:91.7500,ph:"+91-361-247-2364"}
+];
+
+/* on-device dataset (illustrative sample; production = nightly registry sync) */
+const DATA=(function(){
+ const out=[];let id=100;
+ const mets=["yes","yes","yes","no"],setng=["neo","adj","1","2","2","3"],bios=["EGFR","HER2","PD-L1","ALK","BRCA","",""];
+ CENTRES.forEach((ce,i)=>{const k=4+((i*3)%4);
+   for(let j=0;j<k;j++){const cond=CANCERS[(i*5+j*7)%CANCERS.length];const nTr=1+((i+j)%3);
+     for(let t=0;t<nTr;t++){out.push({id:"SAMPLE-"+(id++),cond,centre:ce.n,city:ce.c,lat:ce.lat,lon:ce.lon,
+       met:mets[id%mets.length],line:setng[(id+t)%setng.length],bio:bios[(id+j)%bios.length],
+       cName:"Clinical Trials Coordinator",cPhone:ce.ph,cEmail:"trials@"+ce.n.toLowerCase().replace(/[^a-z]+/g,"").slice(0,10)+".example.in",
+       updated:[3,5,7,9,12,18,26,41][(id+t)%8]});}}});
+ return out;
+})();
+
+/* ===== state ===== */
+let SEG="cancer", demandLog=[];
+let loc={mode:"none",coords:null,label:""};       // none | gps | city
+let browse={group:"solid",system:"All"};
+
+/* ===== init ===== */
+Object.keys(CITIES).forEach(c=>{const o=document.createElement('option');o.value=c;document.getElementById('citylist').appendChild(o);});
+render();  // instant — data is on-device
+
+/* ===== location ===== */
+function requestLocation(){
+  const msg=document.getElementById('locmsg');
+  if(!navigator.geolocation){locDenied("This device can't share location — type a city instead.");return;}
+  document.getElementById('locbtnlabel').textContent="Locating…";
+  navigator.geolocation.getCurrentPosition(
+    p=>{loc={mode:"gps",coords:[p.coords.latitude,p.coords.longitude],label:"your current location"};
+        document.getElementById('city').value="";document.getElementById('allindia').checked=false;
+        setLocBtn(true,"Using your location");msg.classList.remove('show');enableRadius(true,"your current location");render();},
+    e=>{locDenied("Location permission not given — tap Allow, or type a city.");},
+    {enableHighAccuracy:false,timeout:8000,maximumAge:600000}
+  );
+}
+function locDenied(text){loc={mode:"none",coords:null,label:""};setLocBtn(false,"Allow location");
+  const msg=document.getElementById('locmsg');msg.textContent=text;msg.classList.add('show');
+  if(!document.getElementById('city').value.trim()&&!document.getElementById('allindia').checked)enableRadius(false);
+  render();}
+function setLocBtn(active,text){const b=document.getElementById('locbtn');b.classList.toggle('active',active);document.getElementById('locbtnlabel').textContent=text;}
+function enableRadius(on,ofLabel){const row=document.getElementById('radrow'),s=document.getElementById('rad');
+  row.classList.toggle('off',!on);s.disabled=!on;if(ofLabel)document.getElementById('radof').textContent=ofLabel;}
+function onCity(){const v=document.getElementById('city').value.trim();
+  if(v){loc={mode:"city",coords:null,label:v};setLocBtn(false,"Use my location");document.getElementById('allindia').checked=false;
+    const city=matchCity(v);enableRadius(!!CITIES[city],CITIES[city]?city:v);document.getElementById('locmsg').classList.remove('show');}
+  else if(loc.mode==='city'){loc={mode:"none",coords:null,label:""};enableRadius(false);}
+  onScope();}
+function onScope(){clearTimeout(window._st);window._st=setTimeout(render,220);}
+
+function activeCoords(){
+  if(document.getElementById('allindia').checked)return null;
+  if(loc.mode==="gps")return loc.coords;
+  if(loc.mode==="city"){const c=matchCity(document.getElementById('city').value.trim());return CITIES[c]||null;}
+  return null;
+}
+function scopeInfo(){
+  const allIn=document.getElementById('allindia').checked;
+  const coords=activeCoords();const rad=+document.getElementById('rad').value;
+  const where= allIn?"Across India":
+    (loc.mode==="gps"&&coords)?("Within "+rad+" km of your current location"):
+    (loc.mode==="city"&&coords)?("Within "+rad+" km of "+matchCity(document.getElementById('city').value.trim())):
+    (loc.mode==="city"&&!coords)?("Across India — “"+esc(document.getElementById('city').value.trim())+"” not recognised"):
+    "Across India — set a location to search nearby";
+  return {allIn,coords,rad,where};
+}
+
+/* ===== geo + scope ===== */
+function haversine(a,b,c,d){const R=6371,r=x=>x*Math.PI/180;const dLat=r(c-a),dLon=r(d-b);
+  const x=Math.sin(dLat/2)**2+Math.cos(r(a))*Math.cos(r(c))*Math.sin(dLon/2)**2;return Math.round(R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x)));}
+function matchCity(input){if(!input)return"";const k=Object.keys(CITIES);
+  return k.find(c=>c.toLowerCase()===input.toLowerCase())||k.find(c=>c.toLowerCase().startsWith(input.toLowerCase()))||k.find(c=>c.toLowerCase().includes(input.toLowerCase()))||input;}
+function scoped(){const s=scopeInfo();
+  if(s.allIn||!s.coords)return DATA.map(r=>{r._dist=null;return r;});
+  return DATA.filter(r=>{r._dist=haversine(s.coords[0],s.coords[1],r.lat,r.lon);return r._dist<=s.rad;});}
+
+/* ===== render ===== */
+function render(){renderHero();renderBrowse();}
+function renderHero(){const s=scopeInfo();const n=scoped().length;
+  document.getElementById('heroBig').textContent=n;
+  document.getElementById('heroSub').textContent=n===0?"No recruiting trials in this area — try a wider radius or All India.":"recruiting cancer trials, ready to browse and share.";
+  document.getElementById('heroWhere').innerHTML="📍 "+esc(s.where)+" · sample data";}
+
+function setSeg(x){SEG=x;['cancer','centre','search'].forEach(s=>document.getElementById('seg-'+s).classList.toggle('on',s===x));renderBrowse();}
+function tally(recs,key){const o={};recs.forEach(r=>{const k=r[key]||"—";o[k]=(o[k]||0)+1});return o;}
+
+function renderBrowse(){const area=document.getElementById('browseArea');const recs=scoped();
+  if(SEG==='search'){renderSearchForm(area);return;}
+  if(SEG==='centre'){
+    const t=tally(recs,'centre');const items=Object.entries(t).sort((a,b)=>b[1]-a[1]);
+    area.innerHTML='<div class="sechead"><h2>Browse by centre</h2><span class="cnt">'+items.length+' centres</span></div><div class="clist">'+
+      (items.length?items.map(([c,n])=>{const city=(recs.find(r=>r.centre===c)||{}).city||'';
+        return `<button class="crow" onclick="openList('centre',${jattr(c)})"><div class="ci">${esc(initials(c))}</div><div class="cn"><b>${esc(c)}</b><span>${esc(city)}</span></div><div class="cb">${n} ${n===1?'trial':'trials'}</div></button>`;}).join('')
+        :'<div class="empty">No centres in this area. Try <b>All India</b> or a wider radius.</div>')+'</div>';
+    return;
+  }
+  // by cancer — grouped
+  const t=tally(recs,'cond');
+  const solidN=recs.filter(r=>groupOf(r.cond)==='solid').length, bloodN=recs.length-solidN;
+  let html='<div class="grouprow">'+
+    `<button class="gbtn ${browse.group==='solid'?'on':''}" onclick="setGroup('solid')">Solid-organ <span class="gb">${solidN}</span></button>`+
+    `<button class="gbtn ${browse.group==='blood'?'on':''}" onclick="setGroup('blood')">Blood / Haematology <span class="gb">${bloodN}</span></button>`;
+  if(browse.group==='solid'){
+    html+='<span class="sysdrop"><select class="sys" onchange="setSystem(this.value)"><option value="All"'+(browse.system==='All'?' selected':'')+'>All body systems</option>'+
+      SOLID_SYSTEMS.map(s=>`<option value="${esc(s)}"${browse.system===s?' selected':''}>${esc(s)}</option>`).join('')+'</select></span>';
+  }
+  html+='</div>';
+
+  if(browse.group==='blood'){
+    const list=CANCERS.filter(c=>groupOf(c)==='blood').map(c=>[c,t[c]||0]).sort((a,b)=>b[1]-a[1]);
+    html+='<div class="sechead"><h2>Blood / Haematology</h2><span class="cnt">'+bloodN+' trials</span></div>'+tiles(list);
+  }else{
+    const systems=browse.system==='All'?SOLID_SYSTEMS:[browse.system];
+    html+='<div class="sechead"><h2>Solid-organ cancers</h2><span class="cnt">'+solidN+' trials'+(browse.system==='All'?'':' · '+esc(browse.system))+'</span></div>';
+    systems.forEach(sysName=>{
+      const list=CANCERS.filter(c=>SYS[c]===sysName).map(c=>[c,t[c]||0]).sort((a,b)=>b[1]-a[1]);
+      if(!list.length)return;
+      if(browse.system==='All')html+='<div class="syshead">'+esc(sysName)+'</div>';
+      html+=tiles(list);
+    });
+  }
+  area.innerHTML=html;
+}
+function tiles(list){return '<div class="grid">'+list.map(([c,n])=>
+  `<button class="tile ${n?'':'zero'}" ${n?`onclick="openList('cancer',${jattr(c)})"`:''}><div class="nm">${esc(c)}</div><div class="badge">${n}<span>${n===1?'trial':'trials'}</span></div>${n?'<div class="arrow">›</div>':''}</button>`).join('')+'</div>';}
+function setGroup(g){browse.group=g;if(g==='blood')browse.system='All';renderBrowse();}
+function setSystem(s){browse.system=s;renderBrowse();}
+
+function renderSearchForm(area){
+  area.innerHTML=`<div class="sechead"><h2>Search</h2><span class="cnt">${scoped().length} trials in scope</span></div>
+  <div class="searchcard">
+    <div class="field"><label class="lab" for="scond">Cancer type</label>
+      <input list="condlist2" id="scond" type="text" placeholder="e.g. lung cancer" autocomplete="off"/>
+      <datalist id="condlist2">${CANCERS.map(c=>'<option value="'+esc(c)+'">').join('')}</datalist></div>
+    <div class="field"><label class="lab">Spread (metastatic)?</label>
+      <div class="chips" id="smet"><span class="chip on" data-v="any">Any</span><span class="chip" data-v="yes">Yes — spread</span><span class="chip" data-v="no">No</span></div></div>
+    <div class="field"><label class="lab">Therapy setting / line</label>
+      <div class="chips" id="sline"><span class="chip on" data-v="any">Any</span><span class="chip" data-v="neo">Neoadjuvant</span><span class="chip" data-v="adj">Adjuvant</span><span class="chip" data-v="1">1st line</span><span class="chip" data-v="2">2nd line</span><span class="chip" data-v="3">3rd line+</span></div></div>
+    <div class="field"><label class="lab" for="sbio">Key biomarker <span style="font-weight:500;text-transform:none;color:var(--muted)">(optional)</span></label>
+      <input id="sbio" type="text" placeholder="e.g. EGFR, HER2, PD-L1" autocomplete="off"/></div>
+    <button class="go" onclick="runSearch()">Find trials</button>
+  </div><div id="searchResults"></div>`;
+  area.querySelectorAll('.chips').forEach(g=>g.addEventListener('click',e=>{const c=e.target.closest('.chip');if(!c)return;g.querySelectorAll('.chip').forEach(x=>x.classList.remove('on'));c.classList.add('on');}));
+}
+function chipv(id){const on=document.querySelector('#'+id+' .chip.on');return on?on.dataset.v:'any';}
+function runSearch(){
+  const cond=document.getElementById('scond').value.trim();const met=chipv('smet'),line=chipv('sline'),bio=document.getElementById('sbio').value.trim();
+  const s=scopeInfo();logDemand(cond||"(any cancer)",locLabel(s),line,met,bio);
+  let recs=scoped();
+  if(cond)recs=recs.filter(r=>r.cond.toLowerCase().includes(cond.toLowerCase())||cond.toLowerCase().includes(r.cond.toLowerCase().split(' ')[0]));
+  recs=recs.filter(r=>facetOK(r,met,line,bio));
+  if(s.coords)recs.sort((a,b)=>(a._dist??9e9)-(b._dist??9e9));
+  document.getElementById('searchResults').innerHTML=
+    `<div class="listhead"><h2><span class="n">${recs.length}</span> ${recs.length===1?'trial':'trials'} found</h2><p>${cond?esc(cond):'all cancers'} · ${esc(s.where.replace('Across India','across India'))}</p></div>`+
+    (recs.length?'<div class="results">'+recs.map(card).join('')+'</div>':emptyState(s));
+}
+function facetOK(r,met,line,bio){
+  if(bio&&r.bio){if(!r.bio.toLowerCase().includes(bio.toLowerCase()))return false;}
+  if(met!=='any'&&r.met){if(r.met!==met)return false;}
+  if(line!=='any'&&r.line){if(String(r.line)!==String(line))return false;}
+  return true;}
+function openList(kind,val){const s=scopeInfo();
+  let recs=scoped().filter(r=>(kind==='cancer'?r.cond===val:r.centre===val));
+  if(s.coords)recs.sort((a,b)=>(a._dist??9e9)-(b._dist??9e9));
+  logDemand(kind==='cancer'?val:(recs[0]?.cond||'(browse)'),kind==='centre'?val:locLabel(s),'any','any','');
+  const area=document.getElementById('browseArea');
+  const sub=kind==='cancer'?s.where.replace('Across India','across India'):esc((recs[0]||{}).city||'');
+  area.innerHTML=`<button class="back" onclick="renderBrowse()">‹ Back to browse</button>
+    <div class="listhead"><h2><span class="n">${recs.length}</span> ${recs.length===1?'trial':'trials'} · ${esc(val)}</h2><p>${sub}</p></div>
+    <div class="results">${recs.map(card).join('')}</div>`;
+}
+function locLabel(s){return s.allIn?'All India':(loc.mode==='gps'?'My location':(loc.mode==='city'?matchCity(document.getElementById('city').value.trim()):'—'));}
+
+function card(t){const stale=t.updated!=null&&t.updated>30;
+  const fresh=t.updated==null?'confirmation date unknown':('site record updated '+t.updated+' day'+(t.updated===1?'':'s')+' ago');
+  const tel=t.cPhone?t.cPhone.replace(/[^+\d]/g,''):'';
+  const setLabel=({neo:'neoadjuvant',adj:'adjuvant','1':'line 1','2':'line 2','3':'line 3+'})[t.line]||'';
+  const why=[t.cond,t.city,setLabel].filter(Boolean).join(' · ');
+  return `<div class="card trial ${stale?'stale':''}"><div class="src">${esc(t.id)}</div>
+    <h2 class="headline">A study is recruiting for people with ${esc(low(t.cond))}${t.met==='yes'?' that has spread':''}.</h2>
+    <div class="site"><span class="fac">${esc(t.centre)}</span>${t.city?'<span>· '+esc(t.city)+'</span>':''}${t._dist!=null?'<span class="dist">'+t._dist+' km</span>':''}</div>
+    <div class="contact">${t.cName?esc(t.cName)+'<br>':''}${t.cPhone?'📞 <a href="tel:'+esc(tel)+'">'+esc(t.cPhone)+'</a>':'<span style="color:var(--muted)">Contact via registry record</span>'}${t.cEmail?' &nbsp;·&nbsp; <a href="mailto:'+esc(t.cEmail)+'">'+esc(t.cEmail)+'</a>':''}</div>
+    <div class="why"><b>Why this appeared:</b> ${esc(why)}</div>
+    <div class="meta"><span>Source: ${esc(t.id)}</span><span class="fresh ${stale?'old':''}">${stale?'⚠ status not confirmed for '+t.updated+' days':fresh}</span></div>
+    <div class="acts">${t.cPhone?'<a class="btn primary" href="tel:'+esc(tel)+'">Call site</a>':''}<a class="btn" href="https://clinicaltrials.gov/study/${esc(t.id)}" target="_blank" rel="noopener">Registry record</a><span class="btn" onclick="printCard(this)">Print for patient</span></div></div>`;
+}
+function emptyState(s){return `<div class="empty">No trials matched — <b>and that search was still recorded</b> as demand. An unmet search is exactly the signal worth capturing. Try a wider radius or <b>All India</b>.</div>`;}
+
+/* ===== demand capture (silent) =====
+   Every search is recorded as one aggregate row and (in production) POSTed to the PRIVATE
+   backend demand_log — owner access only, never shown in this public app, never patient-level.
+   Queues offline and sends when online. This is the monetisable feasibility signal. */
+function logDemand(cond,where,line,met,bio){
+  demandLog.push({cond:titleCase(cond),city:where,line,met,bio,ts:isoNow()});
+  // e.g. navigator.sendBeacon('/api/demand', JSON.stringify(demandLog.at(-1)))  — aggregate only, no identity
+}
+
+/* ===== utils ===== */
+function isoNow(){return new Date().toISOString();}
+function titleCase(s){return String(s).replace(/\w\S*/g,w=>w[0].toUpperCase()+w.slice(1).toLowerCase());}
+function low(s){return s.charAt(0).toLowerCase()+s.slice(1);}
+function initials(s){return s.replace(/[^A-Za-z ]/g,'').split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase();}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function jattr(s){return "'"+String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'")+"'";}
+function printCard(el){const c=el.closest('.trial').cloneNode(true);c.querySelectorAll('.acts,.src').forEach(n=>n.remove());
+  const w=window.open('','_blank');w.document.write('<html><head><title>Trial — for your patient</title><style>body{font-family:sans-serif;padding:30px;max-width:600px;color:#20343a}h2{font-size:18px}.disc{margin-top:28px;font-size:12px;color:#666;border-top:1px solid #ccc;padding-top:12px}</style></head><body>'+c.innerHTML+'<div class="disc">An information directory of publicly registered clinical trials. It does not determine eligibility or give medical advice. Only the trial investigator at the site can determine eligibility.</div></body></html>');w.document.close();w.print();}
+</script>
+</body>
+</html>

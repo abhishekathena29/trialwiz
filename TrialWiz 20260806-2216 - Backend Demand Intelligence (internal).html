@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>TrialWiz — Demand Intelligence (internal)</title>
+<style>
+  :root{
+    --ink:#2a2140;--ink2:#4a4160;--muted:#7c7488;
+    --bg:#f6f3f7;--card:#fff;--line:#e9e3ee;
+    --brand:#7a2fd0;--brand-d:#6423b8;--brand-dd:#4e1e8a;
+    --wash:#f1e9fa;--wash2:#f8f4fc;--accent:#f26a5d;--accent-w:#fdeeec;
+    --amber:#b0722a;--amber-w:#f8efdf;--red:#b23b4e;--red-w:#fbe9ec;
+    --grad:linear-gradient(135deg,#f26a5d 0%,#c43c8e 52%,#7a2fd0 100%);
+    --sh-sm:0 1px 2px rgba(26,52,60,.05);--sh:0 2px 8px rgba(26,52,60,.06),0 12px 30px rgba(26,52,60,.06);--r:16px;
+  }
+  *{box-sizing:border-box}html,body{margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased}
+  .conf{background:var(--ink);color:#efeaf6;font-size:11px;text-align:center;padding:6px 12px;letter-spacing:.03em}
+  .conf b{color:#fff}
+  header.top{background:#fff;border-bottom:1px solid var(--line)}
+  .top-inner{max-width:1040px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .logo{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;background:var(--grad)}
+  .logo svg{width:20px;height:20px}
+  .brand h1{font-size:16px;margin:0;font-weight:750;letter-spacing:-.2px}
+  .brand p{font-size:11.5px;margin:0;color:var(--muted)}
+  .who{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .lockpill{display:inline-flex;align-items:center;gap:6px;background:var(--wash);color:var(--brand-d);border:1px solid #ddc9f2;border-radius:20px;padding:5px 11px;font-size:11.5px;font-weight:680}
+  .lockpill svg{width:12px;height:12px}
+  select.period{border:1px solid var(--line);border-radius:10px;padding:8px 11px;font-size:12.5px;font-weight:600;color:var(--ink);background:#fff;cursor:pointer}
+  .wrap{max-width:1040px;margin:0 auto;padding:20px}
+
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:13px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px;box-shadow:var(--sh-sm)}
+  .kpi .n{font-size:30px;font-weight:820;letter-spacing:-.8px;color:var(--brand-d)}
+  .kpi .n.warn{color:var(--accent)}
+  .kpi .l{font-size:11px;color:var(--muted);font-weight:650;text-transform:uppercase;letter-spacing:.04em;margin-top:2px}
+  .kpi .d{font-size:11px;color:var(--muted);margin-top:6px}
+
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px;box-shadow:var(--sh-sm)}
+  .card h2{font-size:12.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink2);margin:0 0 14px;font-weight:750}
+  .bar{display:flex;align-items:center;gap:11px;margin-bottom:9px;font-size:13px}
+  .bar .k{width:120px;flex:0 0 auto;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bar .track{flex:1;background:#efe9f4;border-radius:7px;height:18px;overflow:hidden}
+  .bar .fill{height:100%;background:var(--grad);border-radius:7px}
+  .bar .v{width:46px;flex:0 0 auto;text-align:right;font-weight:750;color:var(--ink);font-variant-numeric:tabular-nums}
+
+  .full{margin-top:16px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:700;padding:8px 10px;border-bottom:1px solid var(--line)}
+  td{padding:10px;border-bottom:1px solid var(--line);color:var(--ink)}
+  tr:last-child td{border-bottom:none}
+  .tag{display:inline-block;font-size:11px;font-weight:750;padding:2px 9px;border-radius:20px}
+  .tag.high{background:var(--red-w);color:var(--red)}
+  .tag.med{background:var(--amber-w);color:var(--amber)}
+  .gap{font-weight:750;color:var(--accent)}
+  .sup{color:var(--muted);font-style:italic}
+
+  .note{font-size:12.5px;color:var(--muted);background:var(--card);border:1px dashed #d9cdea;border-radius:13px;padding:14px 16px;margin-top:16px;line-height:1.65}
+  .note b{color:var(--ink2)}
+  .actions{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+  .btn{padding:11px 16px;border-radius:11px;font-size:13px;font-weight:700;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
+  .btn.primary{background:var(--grad);color:#fff;border:none}
+  code{background:#efe9f4;padding:1px 5px;border-radius:5px;font-size:.9em}
+  @media(max-width:760px){.kpis{grid-template-columns:repeat(2,1fr)}.cols{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="conf">🔒 <b>INTERNAL — CONFIDENTIAL.</b> Owner / commercial-entity access only. Aggregate, de-identified demand data. Not part of the public directory.</div>
+<header class="top">
+  <div class="top-inner">
+    <div class="logo"><svg viewBox="0 0 24 24" fill="none"><path d="M9.6 4h4.8v5.2H19.6v4.8H14.4V19H9.6v-5H4.4V9.2H9.6z" fill="#fff" fill-opacity=".95"/><circle cx="12" cy="9.4" r="1.55" fill="#c43c8e"/></svg></div>
+    <div class="brand"><h1>TrialWiz · Demand Intelligence</h1><p>What India is searching for — the feasibility signal, in aggregate</p></div>
+    <div class="who">
+      <select class="period"><option>Last 90 days</option><option>Last 30 days</option><option>Last 12 months</option></select>
+      <span class="lockpill"><svg viewBox="0 0 24 24" fill="none"><rect x="5" y="10" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="1.8"/></svg> owner@trialwiz · signed in</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="kpis">
+    <div class="kpi"><div class="n">12,480</div><div class="l">Searches (90 days)</div><div class="d">▲ 18% vs prior 90 days</div></div>
+    <div class="kpi"><div class="n">84</div><div class="l">Cities / regions</div><div class="d">across 21 states</div></div>
+    <div class="kpi"><div class="n warn">31%</div><div class="l">No matching trial</div><div class="d">unmet demand — the sellable signal</div></div>
+    <div class="kpi"><div class="n">37</div><div class="l">Cancer types searched</div><div class="d">solid + haematology</div></div>
+  </div>
+
+  <div class="cols">
+    <div class="card"><h2>Top demand by cancer type</h2><div id="byCancer"></div></div>
+    <div class="card"><h2>Top demand by location</h2><div id="byCity"></div></div>
+  </div>
+
+  <div class="card full">
+    <h2>Unmet demand — highest-value signal (searches with no site in range)</h2>
+    <table>
+      <thead><tr><th>Cancer / setting</th><th>Region</th><th>Searches (90d)</th><th>Sites ≤300 km</th><th>Gap</th><th>Priority</th></tr></thead>
+      <tbody id="unmet"></tbody>
+    </table>
+    <div class="note" style="margin-top:14px"><b>How to read this.</b> Each row is a place where patients (or their oncologists) are actively looking for a trial that is not recruiting near them. For a sponsor planning an India arm, this is the first demand-led site-selection input that exists — today they rely on sites self-reporting inflated numbers. This is what the commercial entity sells: the shape of demand, never a person.</div>
+  </div>
+
+  <div class="card full"><h2>Demand by therapy setting</h2><div id="bySetting"></div></div>
+
+  <div class="note">
+    <b>Guardrails baked in (non-negotiable).</b>
+    Aggregate counts and geographies only — no patient identity, no phone number, no linkage to a person, ever.
+    <b>k-anonymity:</b> any cell smaller than <code>5</code> is suppressed and shown as “&lt;5”, so a rare cancer in a small town can never re-identify anyone.
+    Sold through the <b>commercial entity</b>, never the non-profit directory, so the free service's trust is untouched.
+    This is fully consistent with Rule 1 (zero patient-level transactions): revenue is indexed to <i>demand shape</i>, never to a specific patient reaching a specific hospital.
+    The public app never shows this screen; it lives behind authentication, here.
+  </div>
+
+  <div class="actions">
+    <button class="btn primary">Generate sponsor report (PDF)</button>
+    <button class="btn">Export aggregate dataset (CSV)</button>
+    <button class="btn">Manage access</button>
+  </div>
+  <div class="note" style="border-style:solid;background:var(--wash2)"><b>Prototype note.</b> Figures on this screen are illustrative. In production these are computed from the <code>demand_log</code> table populated silently by the public app, refreshed nightly, and served only to authenticated owner/commercial accounts.</div>
+</div>
+
+<script>
+const BYCANCER=[["Lung cancer",2840],["Breast cancer",2210],["Colorectal cancer",1180],["Head & neck cancer",990],["Ovarian cancer",640],["Cervical cancer",610],["Prostate cancer",580],["Gastric cancer",520],["Leukaemia",470],["Lymphoma",430]];
+const BYCITY=[["Delhi NCR",3100],["Mumbai",1900],["Bengaluru",1200],["Hyderabad",980],["Chennai",900],["Kolkata",720],["Pune",600],["Ahmedabad",480],["Lucknow",430],["Indore",360]];
+const BYSET=[["1st line",4180],["2nd line",3560],["Adjuvant",1720],["3rd line+",1380],["Neoadjuvant",980],["Unspecified",660]];
+const UNMET=[
+ ["Lung — 2nd line","Indore",210,0,"210","high"],
+ ["Lung — 2nd line","Raipur",180,0,"180","high"],
+ ["Head & neck — 1st line","Guwahati",140,1,"~140","med"],
+ ["Cervical — 1st line","Nagpur",120,1,"~120","med"],
+ ["Ovarian — 2nd line","Patna",95,1,"~95","med"],
+ ["Pancreatic — 1st line","Lucknow",80,1,"~80","med"]
+];
+function bars(el,rows){const max=Math.max(...rows.map(r=>r[1]));
+  el.innerHTML=rows.map(([k,v])=>`<div class="bar"><span class="k">${k}</span><span class="track"><span class="fill" style="width:${Math.round(v/max*100)}%"></span></span><span class="v">${v.toLocaleString()}</span></div>`).join('');}
+bars(document.getElementById('byCancer'),BYCANCER);
+bars(document.getElementById('byCity'),BYCITY);
+bars(document.getElementById('bySetting'),BYSET);
+document.getElementById('unmet').innerHTML=UNMET.map(r=>`<tr><td><b>${r[0]}</b></td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]===0?'<span class="sup">none</span>':r[3]}</td><td class="gap">${r[4]}</td><td><span class="tag ${r[5]}">${r[5].toUpperCase()}</span></td></tr>`).join('');
+</script>
+</body>
+</html>

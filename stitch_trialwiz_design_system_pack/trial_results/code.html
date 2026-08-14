@@ -1,0 +1,235 @@
+<!DOCTYPE html><html lang="en" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>TrialWiz - Trial Results</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-container": "#7a2fd0",
+                        "on-tertiary": "#ffffff",
+                        "on-primary-container": "#e4cbff",
+                        "on-secondary": "#ffffff",
+                        "secondary-container": "#fa7063",
+                        "surface": "#fef7ff",
+                        "inverse-primary": "#d9b9ff",
+                        "surface-variant": "#e9ddff",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary": "#86005c",
+                        "on-secondary-fixed": "#410002",
+                        "tertiary-fixed-dim": "#ffafd5",
+                        "secondary-fixed": "#ffdad5",
+                        "tertiary-fixed": "#ffd8e8",
+                        "on-tertiary-container": "#ffc5df",
+                        "secondary": "#aa352d",
+                        "tertiary-container": "#a72276",
+                        "inverse-on-surface": "#f6edff",
+                        "surface-dim": "#e1d4fd",
+                        "on-secondary-fixed-variant": "#891d18",
+                        "on-tertiary-fixed-variant": "#8a005f",
+                        "background": "#fef7ff",
+                        "on-surface-variant": "#4b4454",
+                        "surface-container": "#f3eaff",
+                        "outline": "#7d7385",
+                        "on-primary": "#ffffff",
+                        "surface-tint": "#7c32d2",
+                        "on-error": "#ffffff",
+                        "error": "#ba1a1a",
+                        "error-container": "#ffdad6",
+                        "on-surface": "#1f1635",
+                        "surface-container-low": "#f8f1ff",
+                        "on-primary-fixed-variant": "#6303b9",
+                        "on-primary-fixed": "#2a0054",
+                        "surface-container-high": "#eee4ff",
+                        "surface-bright": "#fef7ff",
+                        "on-background": "#1f1635",
+                        "primary-fixed-dim": "#d9b9ff",
+                        "secondary-fixed-dim": "#ffb4aa",
+                        "on-error-container": "#93000a",
+                        "primary-fixed": "#eedcff",
+                        "on-tertiary-fixed": "#3d0027",
+                        "surface-container-highest": "#e9ddff",
+                        "outline-variant": "#cec2d6",
+                        "primary": "#6100b6",
+                        "on-secondary-container": "#6c0507",
+                        "inverse-surface": "#342b4b"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "stack-gap": "24px",
+                        "unit": "4px",
+                        "container-margin": "20px",
+                        "touch-target-min": "48px",
+                        "card-padding": "20px"
+                    },
+                    "fontFamily": {
+                        "stat-lg": ["Inter", "sans-serif"],
+                        "headline-lg-mobile": ["Inter", "sans-serif"],
+                        "display-hero": ["Inter", "sans-serif"],
+                        "headline-lg": ["Inter", "sans-serif"],
+                        "label-caps": ["Inter", "sans-serif"],
+                        "body-md": ["Inter", "sans-serif"]
+                    },
+                    "fontSize": {
+                        "stat-lg": ["32px", { "lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+                        "headline-lg-mobile": ["24px", { "lineHeight": "30px", "fontWeight": "600" }],
+                        "display-hero": ["40px", { "lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "headline-lg": ["28px", { "lineHeight": "34px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.1em", "fontWeight": "700" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .icon-fill {
+            font-variation-settings: 'FILL' 1;
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface font-body-md antialiased min-h-screen pb-[96px]">
+<!-- TopAppBar -->
+<header class="bg-surface shadow-sm docked full-width top-0 sticky z-40">
+<div class="flex justify-between items-center w-full px-container-margin py-unit h-touch-target-min">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-2xl" data-icon="clinical_notes">clinical_notes</span>
+<span class="text-headline-lg-mobile font-headline-lg-mobile font-bold text-transparent bg-clip-text bg-gradient-to-br from-[#F26A5D] via-[#C43C8E] to-[#7A2FD0]">TrialWiz · Trial Finder</span>
+</div>
+<div class="flex items-center">
+<span class="text-label-caps font-label-caps text-on-surface-variant bg-surface-container px-3 py-1.5 rounded-full">on-device</span>
+</div>
+</div>
+</header>
+<main class="max-w-7xl mx-auto md:px-container-margin">
+<!-- Hero Panel -->
+
+<!-- Search & Filter -->
+<section class="px-container-margin md:px-0 mt-stack-gap">
+<div class="flex gap-3">
+<div class="relative flex-1">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline">search</span>
+<input class="w-full h-[56px] pl-12 pr-4 bg-surface-container-lowest border border-outline-variant/40 rounded-full focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-body-md font-body-md text-on-surface placeholder:text-outline shadow-[0px_4px_20px_rgba(42,33,64,0.02)] transition-shadow" placeholder="Refine your search..." type="text">
+</div>
+<button class="h-[56px] w-[56px] bg-surface-container border border-outline-variant/40 rounded-full flex items-center justify-center text-primary shadow-[0px_4px_20px_rgba(42,33,64,0.02)] active:scale-95 transition-transform">
+<span class="material-symbols-outlined">tune</span>
+</button>
+</div>
+</section>
+<!-- Trial List -->
+<section class="px-container-margin md:px-0 mt-stack-gap"><div class="flex items-center gap-4 mb-4">
+    <button class="h-touch-target-min w-touch-target-min flex items-center justify-center bg-surface-container rounded-full text-primary active:scale-95 transition-transform">
+      <span class="material-symbols-outlined">arrow_back</span>
+    </button>
+    <h2 class="text-headline-lg-mobile font-headline-lg-mobile text-on-surface">Lymphoma Trials</h2>
+  </div>
+  <div class="mx-container-margin rounded-2xl bg-gradient-to-br from-[#F26A5D] via-[#C43C8E] to-[#7A2FD0] p-card-padding text-white shadow-lg flex flex-col gap-4 relative overflow-hidden">
+    <div class="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/3"></div>
+    <div class="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full blur-xl translate-y-1/3 -translate-x-1/4"></div>
+    <div class="relative z-10">
+      <div class="bg-white/10 p-4 rounded-xl backdrop-blur-sm">
+        <div class="flex flex-col gap-1">
+          <h2 class="text-display-hero font-display-hero font-bold text-white">174</h2>
+          <p class="text-headline-lg-mobile font-medium text-white/80">recruiting cancer trials</p>
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-2 mt-4">
+        <span class="bg-white/20 text-white px-3 py-1 rounded-full text-label-caps font-label-caps">Haematologic Malignancy</span>
+        <span class="bg-white/20 text-white px-3 py-1 rounded-full text-label-caps font-label-caps">Lymphoma</span>
+        <span class="bg-white/20 text-white px-3 py-1 rounded-full text-label-caps font-label-caps">300km around Gurugram</span>
+      </div>
+    </div>
+  </div></section><section class="px-container-margin md:px-0 mt-stack-gap flex flex-col gap-4">
+<!-- Card 1 -->
+<article class="bg-surface-container-lowest rounded-xl p-card-padding shadow-[0px_4px_20px_rgba(42,33,64,0.05)] border border-outline-variant/20 relative overflow-hidden group hover:shadow-[0px_8px_30px_rgba(42,33,64,0.08)] transition-shadow duration-300">
+<!-- Status Bar Indicator -->
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-primary"></div>
+<div class="pl-2">
+<div class="flex flex-wrap items-center gap-2 mb-3">
+<span class="bg-surface-container text-primary px-3 py-1 rounded-full text-label-caps font-label-caps flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]" data-icon="check_circle" data-weight="fill" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+                            Recruiting
+                        </span>
+<span class="bg-surface-container-high text-on-surface-variant px-3 py-1 rounded-full text-label-caps font-label-caps">Phase 3</span>
+</div>
+<h2 class="text-headline-lg-mobile font-headline-lg-mobile text-on-surface mb-2 leading-tight">Study of Pembrolizumab (MK-3475) in Non-Small Cell Lung Cancer</h2>
+<div class="flex items-start gap-2 mt-4 text-on-surface-variant text-body-md font-body-md">
+<span class="material-symbols-outlined text-outline mt-0.5" data-icon="location_on">location_on</span>
+<span class="">Memorial Sloan Kettering Cancer Center, New York, NY</span>
+</div>
+<div class="mt-3 pt-3 border-t border-outline-variant/20"><button class="text-primary text-label-caps font-label-caps hover:underline">+ 4 other locations in India</button></div></div>
+</article>
+<!-- Card 2 -->
+<article class="bg-surface-container-lowest rounded-xl p-card-padding shadow-[0px_4px_20px_rgba(42,33,64,0.05)] border border-outline-variant/20 relative overflow-hidden group hover:shadow-[0px_8px_30px_rgba(42,33,64,0.08)] transition-shadow duration-300">
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-primary"></div>
+<div class="pl-2">
+<div class="flex flex-wrap items-center gap-2 mb-3">
+<span class="bg-surface-container text-primary px-3 py-1 rounded-full text-label-caps font-label-caps flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]" data-icon="check_circle" data-weight="fill" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+                            Recruiting
+                        </span>
+<span class="bg-surface-container-high text-on-surface-variant px-3 py-1 rounded-full text-label-caps font-label-caps">Phase 2</span>
+</div>
+<h2 class="text-headline-lg-mobile font-headline-lg-mobile text-on-surface mb-2 leading-tight">Nivolumab Plus Ipilimumab in Advanced Melanoma Patients</h2>
+<div class="flex items-start gap-2 mt-4 text-on-surface-variant text-body-md font-body-md">
+<span class="material-symbols-outlined text-outline mt-0.5" data-icon="location_on">location_on</span>
+<span class="">MD Anderson Cancer Center, Houston, TX</span>
+</div>
+<div class="mt-3 pt-3 border-t border-outline-variant/20"><button class="text-primary text-label-caps font-label-caps hover:underline">+ 2 other locations in India</button></div></div>
+</article>
+<!-- Card 3 -->
+<article class="bg-surface-container-lowest rounded-xl p-card-padding shadow-[0px_4px_20px_rgba(42,33,64,0.05)] border border-outline-variant/20 relative overflow-hidden group hover:shadow-[0px_8px_30px_rgba(42,33,64,0.08)] transition-shadow duration-300">
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-primary"></div>
+<div class="pl-2">
+<div class="flex flex-wrap items-center gap-2 mb-3">
+<span class="bg-surface-container text-primary px-3 py-1 rounded-full text-label-caps font-label-caps flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]" data-icon="check_circle" data-weight="fill" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+                            Recruiting
+                        </span>
+<span class="bg-surface-container-high text-on-surface-variant px-3 py-1 rounded-full text-label-caps font-label-caps">Phase 1/2</span>
+</div>
+<h2 class="text-headline-lg-mobile font-headline-lg-mobile text-on-surface mb-2 leading-tight">CAR T-Cell Therapy for Relapsed or Refractory B-Cell Lymphoma</h2>
+<div class="flex items-start gap-2 mt-4 text-on-surface-variant text-body-md font-body-md">
+<span class="material-symbols-outlined text-outline mt-0.5" data-icon="location_on">location_on</span>
+<span class="">Dana-Farber Cancer Institute, Boston, MA</span>
+</div>
+<div class="mt-3 pt-3 border-t border-outline-variant/20"><button class="text-primary text-label-caps font-label-caps hover:underline">+ 1 other location in India</button></div></div>
+</article>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="bg-surface-container dark:bg-surface-container-lowest shadow-[0px_-4px_20px_rgba(42,33,64,0.05)] docked full-width bottom-0 rounded-t-xl fixed left-0 w-full z-50 flex justify-around items-center h-[72px] pb-safe md:hidden">
+<!-- Inactive Tab -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant w-1/3 hover:opacity-80 transition-opacity" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="category">category</span>
+<span class="text-label-caps font-label-caps">By Cancer</span>
+</a>
+<!-- Inactive Tab -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant w-1/3 hover:opacity-80 transition-opacity" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="location_on">location_on</span>
+<span class="text-label-caps font-label-caps">By Centre</span>
+</a>
+<!-- Active Tab (Search) -->
+<a class="flex flex-col items-center justify-center w-1/3 active:scale-98 duration-200 transition-all" href="#">
+<div class="flex flex-col items-center justify-center bg-primary-container text-on-primary-container rounded-full px-5 py-1.5">
+<span class="material-symbols-outlined icon-fill" data-icon="search" data-weight="fill">search</span>
+</div>
+<span class="text-label-caps font-label-caps text-primary mt-1">Search</span>
+</a>
+</nav>
+
+
+</body></html>

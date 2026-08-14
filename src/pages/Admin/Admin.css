@@ -1,0 +1,463 @@
+.tw-admin {
+  color: var(--ink);
+}
+.tw-admin .conf {
+  background: var(--ink);
+  color: #efeaf6;
+  font-size: 11px;
+  text-align: center;
+  padding: 6px 12px;
+  letter-spacing: 0.03em;
+}
+.tw-admin .conf b {
+  color: #fff;
+}
+.tw-admin header.top {
+  background: #fff;
+  border-bottom: 1px solid var(--line);
+}
+.tw-admin .top-inner {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.tw-admin .logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  background: var(--grad);
+  flex: 0 0 auto;
+}
+.tw-admin .logo svg {
+  width: 20px;
+  height: 20px;
+}
+.tw-admin .brand h1 {
+  font-size: 16px;
+  margin: 0;
+  font-weight: 750;
+  letter-spacing: -0.2px;
+}
+.tw-admin .brand p {
+  font-size: 11.5px;
+  margin: 0;
+  color: var(--muted);
+}
+.tw-admin .who {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.tw-admin .lockpill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--wash);
+  color: var(--brand-d);
+  border: 1px solid #ddc9f2;
+  border-radius: 20px;
+  padding: 5px 11px;
+  font-size: 11.5px;
+  font-weight: 680;
+  cursor: pointer;
+}
+.tw-admin .lockpill svg {
+  width: 12px;
+  height: 12px;
+}
+.tw-admin select.period {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 11px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+  background: #fff;
+  cursor: pointer;
+}
+.tw-admin .wrap {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.tw-admin .kpis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 13px;
+}
+.tw-admin .kpi {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 16px;
+  box-shadow: var(--sh-sm);
+}
+.tw-admin .kpi .n {
+  font-size: 30px;
+  font-weight: 820;
+  letter-spacing: -0.8px;
+  color: var(--brand-d);
+}
+.tw-admin .kpi .n.warn {
+  color: var(--accent);
+}
+.tw-admin .kpi .l {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 2px;
+}
+.tw-admin .kpi .d {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 6px;
+}
+
+.tw-admin .cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+.tw-admin .sechead2 {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 30px 2px 14px;
+  padding-top: 20px;
+  border-top: 1px dashed #d9cdea;
+}
+.tw-admin .sechead2 h2 {
+  font-size: 15px;
+  margin: 0;
+  font-weight: 780;
+  letter-spacing: -0.2px;
+  color: var(--ink);
+}
+.tw-admin .sechead2 .sup {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-style: normal;
+}
+.tw-admin .card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 18px;
+  box-shadow: var(--sh-sm);
+}
+.tw-admin .card h2 {
+  font-size: 12.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink2);
+  margin: 0 0 14px;
+  font-weight: 750;
+}
+.tw-admin .bar {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 9px;
+  font-size: 13px;
+}
+.tw-admin .bar .k {
+  width: 120px;
+  flex: 0 0 auto;
+  color: var(--ink2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tw-admin .bar .track {
+  flex: 1;
+  background: #efe9f4;
+  border-radius: 7px;
+  height: 18px;
+  overflow: hidden;
+}
+.tw-admin .bar .fill {
+  height: 100%;
+  background: var(--grad);
+  border-radius: 7px;
+}
+.tw-admin .bar .v {
+  width: 46px;
+  flex: 0 0 auto;
+  text-align: right;
+  font-weight: 750;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.tw-admin .full {
+  margin-top: 16px;
+}
+.tw-admin .tablewrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.tw-admin table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.tw-admin th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  font-weight: 700;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+}
+.tw-admin td {
+  padding: 10px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+}
+.tw-admin tr:last-child td {
+  border-bottom: none;
+}
+.tw-admin .tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 750;
+  padding: 2px 9px;
+  border-radius: 20px;
+}
+.tw-admin .tag.high {
+  background: var(--red-w);
+  color: var(--red);
+}
+.tw-admin .tag.med {
+  background: var(--amber-w);
+  color: var(--amber);
+}
+.tw-admin .tag.low {
+  background: var(--wash);
+  color: var(--brand-d);
+}
+.tw-admin .gap {
+  font-weight: 750;
+  color: var(--accent);
+}
+.tw-admin .sup {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.tw-admin .note {
+  font-size: 12.5px;
+  color: var(--muted);
+  background: var(--card);
+  border: 1px dashed #d9cdea;
+  border-radius: 13px;
+  padding: 14px 16px;
+  margin-top: 16px;
+  line-height: 1.65;
+}
+.tw-admin .note b {
+  color: var(--ink2);
+}
+.tw-admin .actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+.tw-admin .btn {
+  padding: 11px 16px;
+  border-radius: 11px;
+  font-size: 13px;
+  font-weight: 700;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+}
+.tw-admin .btn.primary {
+  background: var(--grad);
+  color: #fff;
+  border: none;
+}
+.tw-admin .btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.tw-admin code {
+  background: #efe9f4;
+  padding: 1px 5px;
+  border-radius: 5px;
+  font-size: 0.9em;
+}
+
+.tw-admin .login-wrap {
+  max-width: 400px;
+  margin: 56px auto;
+  padding: 0 20px;
+  min-height: calc(100vh - 200px);
+}
+.tw-admin .login-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 30px 28px;
+  box-shadow: var(--sh);
+}
+.tw-admin .login-card.centered {
+  text-align: center;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+.tw-admin .login-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: var(--wash);
+  color: var(--brand-d);
+  margin-bottom: 14px;
+}
+.tw-admin .login-icon svg {
+  width: 20px;
+  height: 20px;
+}
+.tw-admin .login-card h1 {
+  font-size: 19px;
+  margin: 0 0 6px;
+  letter-spacing: -0.2px;
+}
+.tw-admin .login-card p {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0 0 18px;
+  line-height: 1.5;
+}
+.tw-admin .login-foot {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin: 16px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  line-height: 1.5;
+}
+.tw-admin .login-back {
+  display: block;
+  text-align: center;
+  margin-top: 16px;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--ink2);
+  text-decoration: none;
+}
+.tw-admin .login-back:hover {
+  color: var(--brand-d);
+}
+.tw-admin .login-card label {
+  display: block;
+  font-size: 11px;
+  font-weight: 750;
+  color: var(--ink2);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+.tw-admin .login-card input {
+  width: 100%;
+  padding: 10px 11px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  font-size: 14.5px;
+  margin-bottom: 13px;
+}
+.tw-admin .login-card input:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--wash);
+}
+.tw-admin .login-err {
+  background: var(--red-w);
+  color: var(--red);
+  border-radius: 10px;
+  padding: 8px 11px;
+  font-size: 12.5px;
+  margin-bottom: 13px;
+}
+.tw-admin .go {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 11px;
+  background: var(--grad);
+  color: #fff;
+  font-size: 14.5px;
+  font-weight: 720;
+  cursor: pointer;
+}
+.tw-admin .go:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.tw-admin .setup-note {
+  background: var(--wash2);
+  border: 1px dashed #d9cdea;
+  border-radius: 13px;
+  padding: 16px;
+  font-size: 12.5px;
+  color: var(--ink2);
+  line-height: 1.6;
+}
+
+@media (max-width: 760px) {
+  .tw-admin .kpis {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .tw-admin .cols {
+    grid-template-columns: 1fr;
+  }
+  .tw-admin .top-inner {
+    padding: 10px 14px;
+  }
+  .tw-admin .who {
+    width: 100%;
+    justify-content: space-between;
+    margin-left: 0;
+  }
+  .tw-admin .wrap {
+    padding: 14px;
+  }
+  .tw-admin table {
+    min-width: 480px;
+  }
+  .tw-admin .actions {
+    flex-direction: column;
+  }
+  .tw-admin .actions .btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  .tw-admin .kpis {
+    grid-template-columns: 1fr;
+  }
+  .tw-admin .brand p {
+    display: none;
+  }
+}

@@ -1,0 +1,1429 @@
+.tw-public {
+  color: var(--ink);
+}
+.tw-public .wrap {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 0 16px 130px;
+}
+.tw-public button {
+  font-family: inherit;
+}
+
+.tw-public header.top {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: rgba(243, 241, 236, 0.9);
+  backdrop-filter: saturate(180%) blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+.tw-public .top-inner {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 11px 16px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.tw-public .logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  background: var(--grad);
+  box-shadow: var(--sh-sm);
+}
+.tw-public .logo svg {
+  width: 20px;
+  height: 20px;
+}
+.tw-public .brand h1 {
+  font-size: 15.5px;
+  margin: 0;
+  font-weight: 750;
+  letter-spacing: -0.2px;
+}
+.tw-public .brand p {
+  font-size: 11px;
+  margin: 0;
+  color: var(--muted);
+}
+.tw-public .modebadge {
+  margin-left: auto;
+  font-size: 10.5px;
+  font-weight: 650;
+  padding: 4px 9px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  white-space: nowrap;
+  background: #fff;
+}
+.tw-public .modebadge.on {
+  background: var(--wash);
+  color: var(--brand-d);
+  border-color: #c4dee1;
+}
+
+.tw-public .locbar {
+  margin-top: 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 13px 14px;
+  box-shadow: var(--sh-sm);
+}
+.tw-public .locrow {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.tw-public .locbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--brand);
+  background: var(--wash);
+  color: var(--brand-d);
+  font-weight: 680;
+  font-size: 13.5px;
+  padding: 10px 13px;
+  border-radius: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: 0.14s;
+}
+.tw-public .locbtn:hover {
+  background: #dcecee;
+}
+.tw-public .locbtn.active {
+  background: var(--brand);
+  color: #fff;
+}
+.tw-public .locbtn svg {
+  width: 15px;
+  height: 15px;
+}
+.tw-public .ordiv {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.tw-public .cityin {
+  flex: 1;
+  min-width: 130px;
+}
+.tw-public .cityin input {
+  width: 100%;
+  padding: 10px 11px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  font-size: 14.5px;
+  background: #fff;
+  color: var(--ink);
+}
+.tw-public .cityin input:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--wash);
+}
+.tw-public .allin {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  color: var(--ink2);
+  cursor: pointer;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.tw-public .allin input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--brand);
+}
+.tw-public .radrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line);
+  transition: 0.2s;
+}
+.tw-public .radrow.off {
+  opacity: 0.45;
+}
+.tw-public .radrow label {
+  font-size: 11px;
+  font-weight: 750;
+  color: var(--ink2);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+.tw-public .radrow .rv {
+  color: var(--brand-d);
+}
+.tw-public .radrow input[type='range'] {
+  flex: 1;
+  accent-color: var(--brand);
+}
+.tw-public .radrow input[type='range']:disabled {
+  cursor: not-allowed;
+}
+.tw-public .locmsg {
+  font-size: 11.5px;
+  color: var(--accent);
+  margin-top: 9px;
+  font-weight: 600;
+  display: none;
+}
+.tw-public .locmsg.show {
+  display: block;
+}
+
+.tw-public .regionwrap {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line);
+}
+.tw-public .regionlabel {
+  font-size: 11px;
+  font-weight: 750;
+  color: var(--ink2);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 9px;
+}
+.tw-public .regionrow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tw-public .regionbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink2);
+  font-weight: 680;
+  font-size: 13px;
+  padding: 9px 13px;
+  border-radius: 11px;
+  cursor: pointer;
+  transition: 0.14s;
+}
+.tw-public .regionbtn:hover {
+  border-color: #cfe0e2;
+}
+.tw-public .regionbtn.on {
+  background: var(--brand);
+  color: #fff;
+  border-color: var(--brand);
+}
+.tw-public .regionbtn .rb {
+  background: var(--wash);
+  color: var(--brand-d);
+  border-radius: 20px;
+  padding: 1px 8px;
+  font-size: 11.5px;
+  font-weight: 750;
+}
+.tw-public .regionbtn.on .rb {
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+.tw-public .statedrop {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.tw-public .statedrop select {
+  flex: 1;
+}
+.tw-public .clearregion {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--muted);
+  border-radius: 11px;
+  padding: 0 13px;
+  font-size: 12.5px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.tw-public .clearregion:hover {
+  border-color: #cfe0e2;
+  color: var(--ink2);
+}
+
+.tw-public .canjump {
+  margin-top: 16px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 14px;
+  box-shadow: var(--sh-sm);
+}
+.tw-public .canjump select {
+  width: 100%;
+}
+
+.tw-public .hero {
+  margin-top: 16px;
+  border-radius: 22px;
+  padding: 24px 22px;
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+  background: var(--grad);
+  box-shadow: var(--sh-lg);
+}
+.tw-public .hero::after {
+  content: '';
+  position: absolute;
+  right: -40px;
+  top: -40px;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+}
+.tw-public .hero::before {
+  content: '';
+  position: absolute;
+  right: 40px;
+  bottom: -70px;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+}
+.tw-public .hero .bigrow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  position: relative;
+}
+.tw-public .hero .big {
+  font-size: 50px;
+  font-weight: 820;
+  letter-spacing: -1.5px;
+  line-height: 1;
+  position: relative;
+}
+.tw-public .hero .heroFiltered {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 20px;
+  padding: 7px 8px 7px 13px;
+  font-size: 12.5px;
+  color: #fff;
+  max-width: 100%;
+}
+.tw-public .hero .heroFiltered .arrow {
+  opacity: 0.75;
+}
+.tw-public .hero .heroFiltered .fnum {
+  font-weight: 820;
+  font-size: 15px;
+}
+.tw-public .hero .heroFiltered .flabel {
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+.tw-public .hero .heroFiltered .heroBack {
+  background: rgba(255, 255, 255, 0.22);
+  border: none;
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 5px 10px;
+  border-radius: 20px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tw-public .hero .heroFiltered .heroBack:hover {
+  background: rgba(255, 255, 255, 0.32);
+}
+.tw-public .hero .sub {
+  font-size: 14px;
+  opacity: 0.93;
+  margin-top: 8px;
+  position: relative;
+  max-width: 82%;
+}
+.tw-public .hero .whereline {
+  font-size: 12px;
+  opacity: 0.82;
+  margin-top: 13px;
+  position: relative;
+}
+.tw-public .hero .herochips {
+  display: none;
+  margin-top: 12px;
+  position: relative;
+}
+.tw-public .hero .herochip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 20px;
+  padding: 6px 13px;
+  font-size: 12px;
+  font-weight: 650;
+}
+.tw-public .hero .synced {
+  font-size: 11px;
+  opacity: 0.7;
+  margin-top: 6px;
+  position: relative;
+}
+.tw-public .hero .synced button {
+  background: none;
+  border: none;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: inherit;
+  padding: 0;
+  margin-left: 6px;
+}
+
+.tw-public .seg {
+  display: flex;
+  gap: 6px;
+  margin-top: 18px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  padding: 5px;
+  box-shadow: var(--sh-sm);
+}
+.tw-public .seg > button {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 6px;
+  border: none;
+  background: none;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--muted);
+  cursor: pointer;
+  transition: 0.15s;
+}
+.tw-public .seg > button svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+}
+.tw-public .seg > button.on {
+  background: var(--wash);
+  color: var(--brand-d);
+}
+
+.tw-public .grouprow {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.tw-public .gbtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 12px;
+  padding: 9px 14px;
+  font-size: 13.5px;
+  font-weight: 680;
+  color: var(--ink2);
+  cursor: pointer;
+  box-shadow: var(--sh-sm);
+}
+.tw-public .gbtn.on {
+  background: var(--brand);
+  color: #fff;
+  border-color: var(--brand);
+}
+.tw-public .gbtn .gb {
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 20px;
+  padding: 1px 8px;
+  font-size: 12px;
+  font-weight: 750;
+}
+.tw-public .gbtn:not(.on) .gb {
+  background: var(--wash);
+  color: var(--brand-d);
+}
+.tw-public .sysdrop {
+  margin-left: auto;
+}
+.tw-public select.sys {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 11px;
+  padding: 9px 12px;
+  font-size: 13.5px;
+  color: var(--ink);
+  font-weight: 600;
+  cursor: pointer;
+}
+.tw-public select.sys:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--wash);
+}
+
+.tw-public .sechead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 18px 4px 9px;
+}
+.tw-public .sechead h2 {
+  font-size: 14px;
+  margin: 0;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink2);
+}
+.tw-public .sechead .cnt {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.tw-public .syshead {
+  font-size: 12px;
+  font-weight: 750;
+  color: var(--brand-d);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 16px 4px 8px;
+}
+
+.tw-public .grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
+  gap: 11px;
+}
+.tw-public .tile {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  padding: 14px;
+  cursor: pointer;
+  transition: 0.16s;
+  box-shadow: var(--sh-sm);
+  text-align: left;
+  position: relative;
+}
+.tw-public .tile:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--sh);
+  border-color: #cfe0e2;
+}
+.tw-public .tile .nm {
+  font-size: 14px;
+  font-weight: 680;
+  color: var(--ink);
+  line-height: 1.3;
+  padding-right: 6px;
+}
+.tw-public .tile .badge {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  margin-top: 11px;
+  background: var(--wash);
+  color: var(--brand-d);
+  border-radius: 20px;
+  padding: 4px 11px;
+  font-weight: 750;
+  font-size: 13px;
+}
+.tw-public .tile .badge span {
+  font-size: 10px;
+  font-weight: 600;
+  opacity: 0.8;
+}
+.tw-public .tile .arrow {
+  position: absolute;
+  right: 12px;
+  bottom: 13px;
+  color: #c2d6d8;
+  font-size: 15px;
+}
+.tw-public .tile.zero {
+  opacity: 0.5;
+  cursor: default;
+}
+.tw-public .tile.zero:hover {
+  transform: none;
+  box-shadow: var(--sh-sm);
+  border-color: var(--line);
+}
+.tw-public .tile.zero .badge {
+  background: #eef0ec;
+  color: var(--muted);
+}
+
+.tw-public .clist {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.tw-public .crow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 15px;
+  cursor: pointer;
+  transition: 0.15s;
+  box-shadow: var(--sh-sm);
+  width: 100%;
+  text-align: left;
+}
+.tw-public .crow:hover {
+  border-color: #cfe0e2;
+  box-shadow: var(--sh);
+}
+.tw-public .crow .ci {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  background: var(--wash);
+  color: var(--brand-d);
+  font-weight: 750;
+  font-size: 14px;
+}
+.tw-public .crow .cn {
+  flex: 1;
+  min-width: 0;
+}
+.tw-public .crow .cn b {
+  font-size: 14px;
+  font-weight: 680;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tw-public .crow .cn span {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.tw-public .crow .cb {
+  background: var(--wash);
+  color: var(--brand-d);
+  border-radius: 20px;
+  padding: 5px 12px;
+  font-weight: 750;
+  font-size: 13.5px;
+  flex: 0 0 auto;
+}
+
+.tw-public .searchcard {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: var(--sh-sm);
+}
+.tw-public .field {
+  margin-bottom: 13px;
+}
+.tw-public .field:last-child {
+  margin-bottom: 0;
+}
+.tw-public .lab {
+  display: block;
+  font-size: 11px;
+  font-weight: 750;
+  color: var(--ink2);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.tw-public .chips {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+.tw-public .chip {
+  padding: 8px 13px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  font-size: 13.5px;
+  background: #fff;
+  color: var(--ink2);
+  cursor: pointer;
+  user-select: none;
+  transition: 0.12s;
+}
+.tw-public .chip.on {
+  background: var(--brand);
+  color: #fff;
+  border-color: var(--brand);
+}
+.tw-public .searchcard input[type='text'] {
+  width: 100%;
+  padding: 10px 11px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  font-size: 14.5px;
+}
+.tw-public .searchcard input[type='text']:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--wash);
+}
+.tw-public .go {
+  width: 100%;
+  margin-top: 4px;
+  padding: 13px;
+  border: none;
+  border-radius: 12px;
+  background: var(--grad);
+  color: #fff;
+  font-size: 15.5px;
+  font-weight: 720;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(122, 47, 208, 0.28);
+}
+.tw-public .go:active {
+  transform: translateY(1px);
+}
+.tw-public .go:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.tw-public .back {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  padding: 8px 14px 8px 10px;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--ink2);
+  cursor: pointer;
+  margin-top: 16px;
+  box-shadow: var(--sh-sm);
+}
+.tw-public .back:hover {
+  border-color: #cfe0e2;
+}
+.tw-public .back .backicon {
+  display: inline-flex;
+  width: 15px;
+  height: 15px;
+  color: var(--brand-d);
+}
+.tw-public .back .backicon svg {
+  width: 100%;
+  height: 100%;
+}
+.tw-public .listhead {
+  margin: 14px 4px 8px;
+}
+.tw-public .listhead h2 {
+  font-size: 19px;
+  margin: 0 0 3px;
+  font-weight: 770;
+  letter-spacing: -0.3px;
+}
+.tw-public .listhead p {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0;
+}
+.tw-public .listhead .n {
+  color: var(--brand-d);
+  font-weight: 750;
+}
+
+.tw-public .results {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  margin-top: 12px;
+}
+.tw-public .trial {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--brand);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: var(--sh-sm);
+  position: relative;
+  transition: 0.15s;
+}
+.tw-public .trial:hover {
+  box-shadow: var(--sh);
+}
+.tw-public .trial.stale {
+  opacity: 0.76;
+  border-left-color: var(--stale);
+}
+.tw-public .topcluster {
+  position: absolute;
+  top: 13px;
+  right: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tw-public .src {
+  font-size: 10px;
+  color: var(--muted);
+  font-family: ui-monospace, Menlo, monospace;
+}
+.tw-public .favbtn {
+  border: none;
+  background: none;
+  padding: 2px;
+  cursor: pointer;
+  color: var(--muted);
+  display: inline-flex;
+  line-height: 0;
+}
+.tw-public .favbtn svg {
+  width: 18px;
+  height: 18px;
+}
+.tw-public .favbtn:hover {
+  color: var(--accent);
+}
+.tw-public .favbtn.on {
+  color: var(--accent);
+}
+.tw-public .pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-right: 104px;
+  margin-bottom: 10px;
+}
+.tw-public .pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--wash);
+  color: var(--brand-d);
+  border-radius: 20px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+.tw-public .pill.on {
+  background: var(--brand);
+  color: #fff;
+}
+.tw-public .headline {
+  font-size: 16px;
+  font-weight: 720;
+  margin: 0 0 11px;
+  line-height: 1.34;
+}
+.tw-public .headline.clickable {
+  cursor: pointer;
+}
+.tw-public .headline.clickable:hover {
+  color: var(--brand-d);
+}
+.tw-public .site {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 14px;
+  margin-bottom: 3px;
+}
+.tw-public .site .fac {
+  font-weight: 700;
+}
+.tw-public .dist {
+  font-size: 11.5px;
+  color: var(--brand-d);
+  font-weight: 750;
+  background: var(--wash);
+  padding: 2px 9px;
+  border-radius: 20px;
+}
+.tw-public .contact {
+  font-size: 13.5px;
+  color: var(--ink2);
+  margin: 7px 0 11px;
+}
+.tw-public .contact a {
+  color: var(--brand-d);
+  text-decoration: none;
+  font-weight: 650;
+}
+.tw-public .why {
+  background: var(--wash2);
+  border: 1px solid var(--wash);
+  border-radius: 11px;
+  padding: 9px 12px;
+  font-size: 12.5px;
+  color: var(--ink2);
+  margin-bottom: 11px;
+}
+.tw-public .why b {
+  color: var(--ink);
+}
+.tw-public .meta {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 13px;
+}
+.tw-public .meta .fresh {
+  color: var(--brand-d);
+  font-weight: 650;
+}
+.tw-public .meta .fresh.old {
+  color: var(--stale);
+}
+.tw-public .acts {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tw-public .btn {
+  flex: 1;
+  min-width: 110px;
+  text-align: center;
+  padding: 11px 10px;
+  border-radius: 11px;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+}
+.tw-public .btn.primary {
+  background: var(--brand);
+  color: #fff;
+  border-color: var(--brand);
+}
+.tw-public .btn:hover {
+  border-color: #cfe0e2;
+}
+.tw-public .btn.primary:hover {
+  background: var(--brand-d);
+}
+
+.tw-public .empty {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 26px 20px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+  box-shadow: var(--sh-sm);
+}
+.tw-public .empty b {
+  color: var(--ink2);
+}
+.tw-public .error-banner {
+  background: var(--accent-w);
+  border: 1px solid #f3cfc9;
+  border-radius: 13px;
+  padding: 10px 14px;
+  font-size: 12.5px;
+  color: #8a3a30;
+  margin-top: 14px;
+}
+
+/* --- Optional accounts / saved trials --- */
+.tw-public .authcard {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 20px 18px;
+  box-shadow: var(--sh-sm);
+  max-width: 380px;
+  margin: 0 auto;
+}
+.tw-public .authcard h2 {
+  font-size: 18px;
+  margin: 0 0 6px;
+  font-weight: 770;
+  letter-spacing: -0.2px;
+}
+.tw-public .authsub {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin: 0 0 16px;
+  line-height: 1.5;
+}
+.tw-public .authcard input {
+  width: 100%;
+  padding: 10px 11px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  font-size: 14.5px;
+  margin-bottom: 13px;
+}
+.tw-public .authcard input:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--wash);
+}
+.tw-public .autherr {
+  background: var(--accent-w);
+  color: #8a3a30;
+  border-radius: 10px;
+  padding: 8px 11px;
+  font-size: 12.5px;
+  margin-bottom: 13px;
+}
+.tw-public .authswitch {
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--brand-d);
+  font-size: 12.5px;
+  font-weight: 650;
+  cursor: pointer;
+  margin-top: 12px;
+  padding: 4px;
+}
+.tw-public .authswitch:hover {
+  text-decoration: underline;
+}
+.tw-public .signoutlink {
+  background: none;
+  border: none;
+  color: var(--brand-d);
+  font-weight: 650;
+  cursor: pointer;
+  font-size: inherit;
+  padding: 0;
+  text-decoration: underline;
+}
+
+/* --- Full trial detail view --- */
+.tw-public .detail {
+  position: relative;
+}
+.tw-public .detailtop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px;
+}
+.tw-public .detail .src {
+  margin: 14px 4px 8px;
+}
+.tw-public .dheadline {
+  font-size: 20px;
+  font-weight: 780;
+  letter-spacing: -0.3px;
+  line-height: 1.32;
+  margin: 6px 4px 16px;
+}
+.tw-public .dcard {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: var(--sh-sm);
+  margin-bottom: 13px;
+}
+.tw-public .dlab {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 750;
+  color: var(--ink2);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+.tw-public .dlab svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+}
+.tw-public .dlab.accent {
+  color: var(--brand-d);
+}
+.tw-public .dval {
+  font-size: 17px;
+  font-weight: 720;
+  color: var(--ink);
+}
+.tw-public .statrow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 13px;
+  margin-bottom: 13px;
+}
+.tw-public .statcard {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px 16px;
+  box-shadow: var(--sh-sm);
+}
+.tw-public .dcard.loc .facname {
+  font-size: 16px;
+  font-weight: 750;
+  margin-bottom: 8px;
+}
+.tw-public .dcard .address {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  color: var(--ink2);
+  margin-bottom: 7px;
+  text-decoration: none;
+}
+.tw-public .dcard .address svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+a.address:hover {
+  color: var(--brand-d);
+}
+.tw-public .contactcta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--grad);
+  color: #fff;
+  font-weight: 720;
+  font-size: 14px;
+  text-decoration: none;
+  box-shadow: 0 6px 16px rgba(122, 47, 208, 0.25);
+}
+.tw-public .contactcta svg {
+  width: 16px;
+  height: 16px;
+}
+.tw-public .summary {
+  font-size: 13.5px;
+  color: var(--ink2);
+  line-height: 1.6;
+  margin: 0;
+}
+.tw-public .elig {
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 13px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--line);
+}
+.tw-public .elig.inc {
+  border-left-color: #3f9a5c;
+}
+.tw-public .elig.exc {
+  border-left-color: var(--red);
+}
+.tw-public .elig.inc .dlab {
+  color: #3f9a5c;
+}
+.tw-public .elig.exc .dlab {
+  color: var(--red);
+}
+.tw-public .elig ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.tw-public .elig li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink2);
+  line-height: 1.5;
+}
+.tw-public .elig li svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin-top: 3px;
+}
+.tw-public .elig.inc li svg {
+  color: #3f9a5c;
+}
+.tw-public .elig.exc li svg {
+  color: var(--red);
+}
+
+.tw-public footer.disc {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border-top: 1px solid var(--line);
+  font-size: 10.5px;
+  color: var(--muted);
+  padding: 9px 16px;
+  text-align: center;
+  line-height: 1.4;
+  z-index: 20;
+}
+.tw-public footer.disc b {
+  color: var(--ink2);
+}
+
+@media (max-width: 700px) {
+  .tw-public .wrap {
+    padding: 0 12px 130px;
+  }
+  .tw-public .top-inner {
+    padding: 10px 12px;
+    gap: 9px;
+  }
+  .tw-public .brand h1 {
+    font-size: 14px;
+  }
+  .tw-public .brand p {
+    display: none;
+  }
+  .tw-public .modebadge {
+    font-size: 9.5px;
+    padding: 4px 8px;
+  }
+  .tw-public .locrow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .tw-public .locbtn {
+    justify-content: center;
+    width: 100%;
+  }
+  .tw-public .ordiv {
+    text-align: center;
+  }
+  .tw-public .cityin {
+    width: 100%;
+  }
+  .tw-public .allin {
+    justify-content: center;
+    padding-top: 2px;
+  }
+  .tw-public .regionrow {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .tw-public .regionbtn {
+    justify-content: space-between;
+    width: 100%;
+  }
+  .tw-public .statedrop {
+    flex-direction: column;
+  }
+  .tw-public .clearregion {
+    padding: 10px 13px;
+  }
+  .tw-public .grid {
+    grid-template-columns: repeat(auto-fill, minmax(135px, 1fr));
+  }
+  .tw-public .acts {
+    flex-direction: column;
+  }
+  .tw-public .btn {
+    min-width: 0;
+    width: 100%;
+  }
+  .tw-public .grouprow {
+    gap: 8px;
+  }
+  .tw-public .gbtn {
+    flex: 1;
+    justify-content: center;
+  }
+  .tw-public .radrow {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+  .tw-public .radrow label {
+    white-space: normal;
+  }
+
+  /* --- Mobile design-system alignment (stitch_trialwiz_design_system_pack) --- */
+
+  /* Primary location CTA becomes the full gradient "Pulse" button, per the pack's Location Settings card. */
+  .tw-public .locbtn {
+    background: var(--grad);
+    color: #fff;
+    border: none;
+    box-shadow: 0 6px 16px rgba(122, 47, 208, 0.22);
+  }
+  .tw-public .locbtn.active {
+    background: var(--grad);
+  }
+  .tw-public .locbtn:hover {
+    background: var(--grad);
+    opacity: 0.94;
+  }
+  .tw-public .cityin input {
+    background: var(--wash2);
+    border-color: transparent;
+  }
+  .tw-public .regionbtn:not(.on) {
+    background: var(--wash2);
+    border-color: transparent;
+  }
+
+  /* Hero shows the active scope as a translucent chip (matches the pack's filter-chip row) instead of the plain sentence. */
+  .tw-public .hero .whereline {
+    display: none;
+  }
+  .tw-public .hero .herochips {
+    display: block;
+  }
+
+  /* Segmented tabs become a fixed bottom pill bar; the active tab floats as a solid gradient capsule. */
+  .tw-public .seg {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    margin-top: 0;
+    border-radius: 20px 20px 0 0;
+    border: none;
+    border-top: 1px solid var(--line);
+    padding: 7px 10px calc(7px + env(safe-area-inset-bottom, 0px));
+    box-shadow: 0 -6px 24px rgba(42, 33, 64, 0.1);
+  }
+  .tw-public .seg > button {
+    flex-direction: column;
+    gap: 3px;
+    padding: 7px 4px;
+    font-size: 10.5px;
+    border-radius: 14px;
+  }
+  .tw-public .seg > button svg {
+    width: 19px;
+    height: 19px;
+  }
+  .tw-public .seg > button.on {
+    background: var(--grad);
+    color: #fff;
+    box-shadow: 0 6px 16px rgba(122, 47, 208, 0.3);
+  }
+
+  /* The disclaimer scrolls as normal content, ending just above the fixed tab bar, instead of its own fixed strip. */
+  .tw-public .wrap {
+    padding-bottom: 20px;
+  }
+  .tw-public footer.disc {
+    position: static;
+    margin-top: 18px;
+    border-radius: 16px 16px 0 0;
+    padding: 12px 16px calc(84px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Back control collapses to an icon-only circular button, per the pack's detail-page back affordance. */
+  .tw-public .back {
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    border-radius: 50%;
+    justify-content: center;
+  }
+  .tw-public .back .backicon {
+    width: 17px;
+    height: 17px;
+  }
+  .tw-public .back .backtext {
+    display: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .tw-public .hero {
+    padding: 20px 18px;
+  }
+  .tw-public .hero .big {
+    font-size: 40px;
+  }
+  .tw-public .hero .sub {
+    max-width: 100%;
+  }
+  .tw-public .hero .heroFiltered {
+    width: 100%;
+  }
+  .tw-public .hero .heroFiltered .flabel {
+    max-width: none;
+    flex: 1;
+  }
+  .tw-public .pills {
+    padding-right: 82px;
+  }
+  .tw-public .sysdrop {
+    margin-left: 0;
+    width: 100%;
+  }
+  .tw-public select.sys {
+    width: 100%;
+  }
+}
+
+/* Prevent iOS Safari from auto-zooming into text inputs/selects on focus. */
+@media (max-width: 480px) {
+  .tw-public .cityin input,
+  .tw-public .searchcard input[type='text'],
+  .tw-public select.sys {
+    font-size: 16px;
+  }
+}
