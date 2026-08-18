@@ -33,18 +33,26 @@
   flex: 0 0 auto;
   display: grid;
   place-items: center;
-  background: var(--grad);
+  overflow: hidden;
+  background: #fff;
   box-shadow: var(--sh-sm);
 }
-.tw-public .logo svg {
-  width: 20px;
-  height: 20px;
+.tw-public .logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .tw-public .brand h1 {
   font-size: 15.5px;
   margin: 0;
   font-weight: 750;
   letter-spacing: -0.2px;
+}
+.tw-public .brand .byline {
+  font-size: 11px;
+  margin: 0;
+  font-weight: 600;
+  color: var(--ink);
 }
 .tw-public .brand p {
   font-size: 11px;
