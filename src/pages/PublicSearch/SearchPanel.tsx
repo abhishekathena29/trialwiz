@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { CANCERS } from '../../data/cancerTaxonomy';
 import type { TrialSite } from '../../types';
+import { groupByNctId, type GroupedTrial } from '../../utils/groupTrials';
 import { TrialCard } from './TrialCard';
 
 export interface SearchFilters {
@@ -50,9 +51,9 @@ interface Props {
   scopeWhereLabel: string;
   results: TrialSite[] | null;
   onSearch: (filters: SearchFilters) => void;
-  onOpenDetail: (trial: TrialSite) => void;
-  isFavorite: (trial: TrialSite) => boolean;
-  onToggleFavorite: (trial: TrialSite) => void;
+  onOpenDetail: (trial: GroupedTrial) => void;
+  isFavorite: (trial: GroupedTrial) => boolean;
+  onToggleFavorite: (trial: GroupedTrial) => void;
 }
 
 export function SearchPanel({ scopedCount, scopeWhereLabel, results, onSearch, onOpenDetail, isFavorite, onToggleFavorite }: Props) {
@@ -61,6 +62,7 @@ export function SearchPanel({ scopedCount, scopeWhereLabel, results, onSearch, o
   const [line, setLine] = useState<SearchFilters['line']>('any');
   const [bio, setBio] = useState('');
   const [other, setOther] = useState('');
+  const groupedResults = useMemo(() => (results ? groupByNctId(results) : null), [results]);
 
   return (
     <div>
@@ -127,19 +129,19 @@ export function SearchPanel({ scopedCount, scopeWhereLabel, results, onSearch, o
         </button>
       </div>
 
-      {results !== null && (
+      {groupedResults !== null && (
         <div>
           <div className="listhead">
             <h2>
-              <span className="n">{results.length}</span> {results.length === 1 ? 'trial' : 'trials'} found
+              <span className="n">{groupedResults.length}</span> {groupedResults.length === 1 ? 'trial' : 'trials'} found
             </h2>
             <p>
               {cond || 'all cancers'} · {scopeWhereLabel}
             </p>
           </div>
-          {results.length ? (
+          {groupedResults.length ? (
             <div className="results">
-              {results.map((t) => (
+              {groupedResults.map((t) => (
                 <TrialCard
                   key={t.key}
                   trial={t}

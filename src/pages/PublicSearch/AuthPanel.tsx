@@ -10,6 +10,11 @@ function friendlyAuthError(message: string): string {
   if (message.includes('auth/weak-password')) return 'Password should be at least 6 characters.';
   if (message.includes('auth/invalid-email')) return "That doesn't look like a valid email address.";
   if (message.includes('auth/too-many-requests')) return 'Too many attempts — wait a moment and try again.';
+  if (message.includes('auth/network-request-failed')) return 'Could not reach the server — check your connection and try again.';
+  if (message.includes('auth/operation-not-allowed'))
+    return "Email/password sign-up isn't enabled for this app yet — contact support.";
+  if (message.includes('auth/unauthorized-domain'))
+    return "This site isn't authorised for sign-up yet — contact support.";
   return 'Something went wrong — please try again.';
 }
 
@@ -17,6 +22,8 @@ export function AuthPanel() {
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -28,8 +35,14 @@ export function AuthPanel() {
     );
   }
 
+  const passwordsMismatch = mode === 'signup' && confirmPassword.length > 0 && password !== confirmPassword;
+
   async function submit() {
     if (!auth) return;
+    if (mode === 'signup' && password !== confirmPassword) {
+      setError("Those passwords don't match — check both fields and try again.");
+      return;
+    }
     setError('');
     setBusy(true);
     try {
@@ -41,6 +54,8 @@ export function AuthPanel() {
         logUsage('signin', 'email');
       }
     } catch (e) {
+      // Log the raw Firebase error code for debugging — the UI only ever shows the friendly version.
+      console.error('[TrialWiz] auth error:', e);
       setError(e instanceof Error ? friendlyAuthError(e.message) : 'Something went wrong — please try again.');
     } finally {
       setBusy(false);
@@ -59,15 +74,57 @@ export function AuthPanel() {
       <label className="lab" htmlFor="apass">
         Password
       </label>
-      <input
-        id="apass"
-        type="password"
-        autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        onKeyDown={(e) => e.key === 'Enter' && submit()}
-      />
-      <button className="go" onClick={submit} disabled={busy || !email.trim() || password.length < 6}>
+      <div className="passwrap">
+        <input
+          id="apass"
+          type={showPassword ? 'text' : 'password'}
+          autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && submit()}
+        />
+        <button
+          type="button"
+          className="pwtoggle"
+          onClick={() => setShowPassword((v) => !v)}
+          tabIndex={-1}
+          aria-label={showPassword ? 'Hide password' : 'Show password'}
+        >
+          {showPassword ? 'Hide' : 'Show'}
+        </button>
+      </div>
+      {mode === 'signup' && (
+        <>
+          <label className="lab" htmlFor="apass2">
+            Confirm password
+          </label>
+          <div className="passwrap">
+            <input
+              id="apass2"
+              type={showPassword ? 'text' : 'password'}
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && submit()}
+            />
+            <button
+              type="button"
+              className="pwtoggle"
+              onClick={() => setShowPassword((v) => !v)}
+              tabIndex={-1}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+            >
+              {showPassword ? 'Hide' : 'Show'}
+            </button>
+          </div>
+          {passwordsMismatch && <div className="authwarn">Passwords don't match yet.</div>}
+        </>
+      )}
+      <button
+        className="go"
+        onClick={submit}
+        disabled={busy || !email.trim() || password.length < 6 || (mode === 'signup' && passwordsMismatch)}
+      >
         {busy ? 'Please wait…' : mode === 'signup' ? 'Create account' : 'Sign in'}
       </button>
       <button
@@ -75,6 +132,7 @@ export function AuthPanel() {
         onClick={() => {
           setMode(mode === 'signup' ? 'signin' : 'signup');
           setError('');
+          setConfirmPassword('');
         }}
       >
         {mode === 'signup' ? 'Already have an account? Sign in' : 'New here? Create an account'}

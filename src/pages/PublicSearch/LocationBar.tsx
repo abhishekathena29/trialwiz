@@ -109,16 +109,21 @@ export function LocationBar({
       <div className="regionwrap">
         <div className="regionlabel">Or browse by region</div>
         <div className="regionrow">
-          {REGION_NAMES.map((name) => (
-            <button
-              key={name}
-              className={`regionbtn${region === name ? ' on' : ''}`}
-              onClick={() => (region === name ? onClearRegion() : onSelectRegion(name))}
-            >
-              {name.replace(' India', '')}
-              <span className="rb">{regionCounts[name]}</span>
-            </button>
-          ))}
+          {REGION_NAMES.map((name) => {
+            const count = regionCounts[name];
+            const inPlay = region === name || count > 0;
+            return (
+              <button
+                key={name}
+                className={`regionbtn${region === name ? ' on' : ''}${inPlay ? '' : ' zero'}`}
+                onClick={() => (region === name ? onClearRegion() : onSelectRegion(name))}
+                title={inPlay ? undefined : 'No trials in this region for the current search scope'}
+              >
+                {name}
+                <span className="rb">{count}</span>
+              </button>
+            );
+          })}
         </div>
         {region && (
           <div className="statedrop">

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { logDemand } from '../../analytics/demandLog';
 import { logUsage } from '../../analytics/usageLog';
 import { Logo } from '../../components/Logo';
@@ -10,6 +10,7 @@ import { useIndiaCancerTrials } from '../../hooks/useIndiaCancerTrials';
 import type { TrialSite } from '../../types';
 import { centreKey } from '../../utils/format';
 import { haversineKm } from '../../utils/geo';
+import { groupByNctId, type GroupedTrial } from '../../utils/groupTrials';
 import './PublicSearch.css';
 import { BrowseByCancer } from './BrowseByCancer';
 import { BrowseByCentre } from './BrowseByCentre';
@@ -44,13 +45,18 @@ export function PublicSearch() {
   const [system, setSystem] = useState('All');
   const [activeList, setActiveList] = useState<ActiveList>(null);
   const [searchResults, setSearchResults] = useState<TrialSite[] | null>(null);
-  const [detailTrial, setDetailTrial] = useState<TrialSite | null>(null);
+  const [detailTrial, setDetailTrial] = useState<GroupedTrial | null>(null);
+  const resultsRef = useRef<HTMLDivElement | null>(null);
 
-  function openDetail(trial: TrialSite) {
+  function scrollToResults() {
+    resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function openDetail(trial: GroupedTrial) {
     setDetailTrial(trial);
   }
 
-  function handleToggleFavorite(trial: TrialSite) {
+  function handleToggleFavorite(trial: GroupedTrial) {
     if (!user) {
       setDetailTrial(null);
       setSeg('saved');
@@ -121,6 +127,7 @@ export function PublicSearch() {
     setCityInput('');
     setLocMsg('');
     logUsage('location', name);
+    setTimeout(scrollToResults, 0);
   }
 
   function selectRegionState(state: string | null) {
@@ -145,6 +152,15 @@ export function PublicSearch() {
   }, [allIndia, locMode, coords, cityInput]);
 
   const radiusEnabled = !allIndia && locMode !== 'region' && activeCoords != null;
+
+  // Region-agnostic scope (radius/city/All India, ignoring any region already picked) — used to
+  // grey out region buttons that have no trials "in play" for the current slider/city search.
+  const radiusScopedRows = useMemo<TrialSite[]>(() => {
+    if (allIndia || !activeCoords) return rows;
+    return rows.filter(
+      (r) => r.lat != null && r.lon != null && haversineKm(activeCoords[0], activeCoords[1], r.lat, r.lon) <= radius,
+    );
+  }, [rows, allIndia, activeCoords, radius]);
   const radiusOfLabel =
     locMode === 'gps' ? 'your current location' : locMode === 'city' ? matchCity(cityInput.trim()) || cityInput : 'your current location';
 
@@ -247,15 +263,16 @@ export function PublicSearch() {
     setDetailTrial(null);
   }
 
-  const activeListRows = useMemo(() => {
+  const activeListRows = useMemo<GroupedTrial[]>(() => {
     if (!activeList) return [];
     const filtered = scopedRows.filter((r) =>
       activeList.kind === 'cancer' ? r.cancerType === activeList.value : centreKey(r.facility, r.city) === centreKey(activeList.facility, activeList.city),
     );
-    return [...filtered].sort((a, b) => (a.distanceKm ?? 9e9) - (b.distanceKm ?? 9e9));
+    return groupByNctId(filtered);
   }, [activeList, scopedRows]);
 
-  const n = scopedRows.length;
+  const groupedScopedRows = useMemo(() => groupByNctId(scopedRows), [scopedRows]);
+  const n = groupedScopedRows.length;
   const syncLabel = fetchedAt
     ? `🗂 Trial data synced ${new Date(fetchedAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })} · live from ClinicalTrials.gov`
     : '🗂 Syncing with ClinicalTrials.gov…';
@@ -276,7 +293,13 @@ export function PublicSearch() {
       <div className="wrap">
         <div className="hero">
           <div className="bigrow">
-            <div className="big">{loading && rows.length === 0 ? '—' : n}</div>
+            <div
+              className={`big${n > 0 ? ' clickable' : ''}`}
+              onClick={n > 0 ? scrollToResults : undefined}
+              title={n > 0 ? 'Jump to the trial list' : undefined}
+            >
+              {loading && rows.length === 0 ? '—' : n}
+            </div>
             {activeList && (
               <div className="heroFiltered">
                 <span className="arrow">↳</span>
@@ -307,30 +330,6 @@ export function PublicSearch() {
           </div>
         </div>
 
-        <LocationBar
-          locating={locating}
-          locActive={locMode === 'gps'}
-          locButtonLabel={locMode === 'gps' ? 'Using your location' : 'Use my location'}
-          cityInput={cityInput}
-          allIndia={allIndia}
-          radiusEnabled={radiusEnabled}
-          radiusOfLabel={radiusOfLabel}
-          radius={radius}
-          locMsg={locMsg}
-          rows={rows}
-          region={region}
-          regionState={regionState}
-          onRequestLocation={requestLocation}
-          onCityChange={onCityChange}
-          onAllIndiaChange={onAllIndiaChange}
-          onRadiusChange={setRadius}
-          onSelectRegion={selectRegion}
-          onSelectRegionState={selectRegionState}
-          onClearRegion={clearRegion}
-        />
-
-        {error && <div className="error-banner">{error}</div>}
-
         <div className="seg">
           <button className={seg === 'cancer' ? 'on' : ''} onClick={() => changeSeg('cancer')}>
             <CancerTypeIcon />
@@ -350,6 +349,33 @@ export function PublicSearch() {
           </button>
         </div>
 
+        <div className={`locbarwrap${seg === 'cancer' ? '' : ' hide-on-mobile'}`}>
+          <LocationBar
+            locating={locating}
+            locActive={locMode === 'gps'}
+            locButtonLabel={locMode === 'gps' ? 'Using your location' : 'Use my location'}
+            cityInput={cityInput}
+            allIndia={allIndia}
+            radiusEnabled={radiusEnabled}
+            radiusOfLabel={radiusOfLabel}
+            radius={radius}
+            locMsg={locMsg}
+            rows={radiusScopedRows}
+            region={region}
+            regionState={regionState}
+            onRequestLocation={requestLocation}
+            onCityChange={onCityChange}
+            onAllIndiaChange={onAllIndiaChange}
+            onRadiusChange={setRadius}
+            onSelectRegion={selectRegion}
+            onSelectRegionState={selectRegionState}
+            onClearRegion={clearRegion}
+          />
+        </div>
+
+        {error && <div className="error-banner">{error}</div>}
+
+        <div ref={resultsRef}>
         {detailTrial ? (
           <TrialDetail
             trial={detailTrial}
@@ -380,7 +406,7 @@ export function PublicSearch() {
           <BrowseByCentre rows={scopedRows} onOpenCentre={openCentre} />
         ) : seg === 'search' ? (
           <SearchPanel
-            scopedCount={scopedRows.length}
+            scopedCount={groupedScopedRows.length}
             scopeWhereLabel={whereLabel.replace('Across India', 'across India')}
             results={searchResults}
             onSearch={runSearch}
@@ -398,6 +424,7 @@ export function PublicSearch() {
             onToggleFavorite={handleToggleFavorite}
           />
         )}
+        </div>
       </div>
 
       <footer className="disc">

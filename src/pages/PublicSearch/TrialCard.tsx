@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { logUsage } from '../../analytics/usageLog';
-import type { TrialSite } from '../../types';
-import { daysSince, lowerFirst, telHref } from '../../utils/format';
+import type { GroupedTrial, TrialLocation } from '../../utils/groupTrials';
+import { daysSince, telHref } from '../../utils/format';
+import { printTrial } from '../../utils/printTrial';
 import { HeartIcon } from './icons';
 
 const STALE_AFTER_DAYS = 30;
@@ -28,34 +30,56 @@ const LINE_LABEL: Record<string, string> = {
   'third-line-plus': 'line 3+',
 };
 
-function printCard(cardKey: string) {
-  const el = document.getElementById(`trial-${cardKey}`);
-  if (!el) return;
-  const clone = el.cloneNode(true) as HTMLElement;
-  clone.querySelectorAll('.acts, .topcluster').forEach((n) => n.remove());
-  const w = window.open('', '_blank');
-  if (!w) return;
-  w.document.write(
-    `<html><head><title>Trial — for your patient</title><style>body{font-family:sans-serif;padding:30px;max-width:600px;color:#20343a}h2{font-size:18px}.disc{margin-top:28px;font-size:12px;color:#666;border-top:1px solid #ccc;padding-top:12px}</style></head><body>${clone.innerHTML}<div class="disc">An information directory of publicly registered clinical trials. It does not determine eligibility or give medical advice. Only the trial investigator at the site can determine eligibility.</div></body></html>`,
+function SiteBlock({ site }: { site: TrialLocation }) {
+  const tel = telHref(site.contactPhone);
+  return (
+    <div className="siteblock">
+      <div className="site">
+        <span className="fac">{site.facility}</span>
+        {site.city && <span>· {site.city}</span>}
+        {site.distanceKm != null && <span className="dist">{site.distanceKm} km</span>}
+      </div>
+      <div className="contact">
+        {site.contactName ? (
+          <>
+            {site.contactName}
+            <br />
+          </>
+        ) : null}
+        {site.contactPhone ? (
+          <a href={`tel:${tel}`}>📞 {site.contactPhone}</a>
+        ) : (
+          <span style={{ color: 'var(--muted)' }}>Contact via registry record</span>
+        )}
+        {site.contactEmail ? (
+          <>
+            {' '}
+            &nbsp;·&nbsp; <a href={`mailto:${site.contactEmail}`}>{site.contactEmail}</a>
+          </>
+        ) : null}
+      </div>
+    </div>
   );
-  w.document.close();
-  w.print();
 }
 
 interface Props {
-  trial: TrialSite;
-  onOpenDetail?: (trial: TrialSite) => void;
+  trial: GroupedTrial;
+  onOpenDetail?: (trial: GroupedTrial) => void;
   isFavorite?: boolean;
-  onToggleFavorite?: (trial: TrialSite) => void;
+  onToggleFavorite?: (trial: GroupedTrial) => void;
 }
 
 export function TrialCard({ trial, onOpenDetail, isFavorite, onToggleFavorite }: Props) {
+  const [showAllSites, setShowAllSites] = useState(false);
   const days = daysSince(trial.lastUpdatePostDate);
   const stale = days != null && days > STALE_AFTER_DAYS;
   const fresh = days == null ? 'confirmation date unknown' : `registry record updated ${days} day${days === 1 ? '' : 's'} ago`;
   const setLabel = LINE_LABEL[trial.lineOfTherapy] ?? '';
-  const tel = telHref(trial.contactPhone);
-  const why = [trial.cancerType, trial.city, setLabel].filter(Boolean).join(' · ');
+  const primary = trial.sites[0];
+  const tel = telHref(primary?.contactPhone);
+  const metastaticNote = trial.metastatic === 'mentioned' ? 'advanced/metastatic disease mentioned' : '';
+  const why = [trial.cancerType, primary?.city, setLabel, metastaticNote].filter(Boolean).join(' · ');
+  const moreSites = trial.sites.slice(1);
 
   return (
     <div id={`trial-${trial.key}`} className={`trial${stale ? ' stale' : ''}`}>
@@ -78,35 +102,51 @@ export function TrialCard({ trial, onOpenDetail, isFavorite, onToggleFavorite }:
             {formatPhase(p)}
           </span>
         ))}
+        {trial.sites.length > 1 && <span className="pill sites">📍 {trial.sites.length} India sites</span>}
       </div>
       <h2 className={`headline${onOpenDetail ? ' clickable' : ''}`} onClick={() => onOpenDetail?.(trial)}>
-        A study is recruiting for people with {lowerFirst(trial.cancerType)}
-        {trial.metastatic === 'mentioned' ? ' — the record mentions advanced/metastatic disease' : ''}.
+        {trial.briefTitle}
       </h2>
-      <div className="site">
-        <span className="fac">{trial.facility}</span>
-        {trial.city && <span>· {trial.city}</span>}
-        {trial.distanceKm != null && <span className="dist">{trial.distanceKm} km</span>}
-      </div>
+      {primary && (
+        <div className="site">
+          <span className="fac">{primary.facility}</span>
+          {primary.city && <span>· {primary.city}</span>}
+          {primary.distanceKm != null && <span className="dist">{primary.distanceKm} km</span>}
+        </div>
+      )}
       <div className="contact">
-        {trial.contactName ? (
+        {primary?.contactName ? (
           <>
-            {trial.contactName}
+            {primary.contactName}
             <br />
           </>
         ) : null}
-        {trial.contactPhone ? (
-          <a href={`tel:${tel}`}>📞 {trial.contactPhone}</a>
+        {primary?.contactPhone ? (
+          <a href={`tel:${tel}`}>📞 {primary.contactPhone}</a>
         ) : (
           <span style={{ color: 'var(--muted)' }}>Contact via registry record</span>
         )}
-        {trial.contactEmail ? (
+        {primary?.contactEmail ? (
           <>
             {' '}
-            &nbsp;·&nbsp; <a href={`mailto:${trial.contactEmail}`}>{trial.contactEmail}</a>
+            &nbsp;·&nbsp; <a href={`mailto:${primary.contactEmail}`}>{primary.contactEmail}</a>
           </>
         ) : null}
       </div>
+      {moreSites.length > 0 && (
+        <>
+          <button className="moresites" onClick={() => setShowAllSites((v) => !v)}>
+            {showAllSites ? '▾ Hide other locations' : `▸ Also recruiting at ${moreSites.length} more location${moreSites.length === 1 ? '' : 's'}`}
+          </button>
+          {showAllSites && (
+            <div className="sitesexpand">
+              {moreSites.map((s) => (
+                <SiteBlock key={s.key} site={s} />
+              ))}
+            </div>
+          )}
+        </>
+      )}
       <div className="why">
         <b>Why this appeared:</b> {why}
       </div>
@@ -117,9 +157,9 @@ export function TrialCard({ trial, onOpenDetail, isFavorite, onToggleFavorite }:
         </span>
       </div>
       <div className="acts">
-        {trial.contactPhone && (
+        {primary?.contactPhone && (
           <a className="btn primary" href={`tel:${tel}`} onClick={() => logUsage('click', 'Call site', trial.nctId)}>
-            Call site
+            Call nearest site
           </a>
         )}
         <a
@@ -134,7 +174,7 @@ export function TrialCard({ trial, onOpenDetail, isFavorite, onToggleFavorite }:
         <span
           className="btn"
           onClick={() => {
-            printCard(trial.key);
+            printTrial(trial);
             logUsage('click', 'Print for patient', trial.nctId);
           }}
         >

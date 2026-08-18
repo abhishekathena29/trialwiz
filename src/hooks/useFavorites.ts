@@ -2,12 +2,12 @@ import type { User } from 'firebase/auth';
 import { collection, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp, setDoc } from 'firebase/firestore';
 import { useCallback, useEffect, useState } from 'react';
 import { db } from '../firebase';
-import type { TrialSite } from '../types';
+import type { GroupedTrial } from '../utils/groupTrials';
 
 /** Small denormalised snapshot — enough to render a saved-trial card even if the trial
- * later drops out of the live "currently recruiting" dataset. */
+ * later drops out of the live "currently recruiting" dataset. Keyed by NCT id, so saving
+ * a trial saves the whole study (all its India sites), not one specific site. */
 export interface FavoriteEntry {
-  key: string;
   nctId: string;
   cancerType: string;
   briefTitle: string;
@@ -30,22 +30,22 @@ export function useFavorites(user: User | null) {
     return unsub;
   }, [user]);
 
-  const isFavorite = useCallback((trial: TrialSite) => favorites.some((f) => f.key === trial.key), [favorites]);
+  const isFavorite = useCallback((trial: GroupedTrial) => favorites.some((f) => f.nctId === trial.nctId), [favorites]);
 
   const toggleFavorite = useCallback(
-    (trial: TrialSite) => {
+    (trial: GroupedTrial) => {
       if (!db || !user) return;
-      const ref = doc(db, 'users', user.uid, 'favorites', trial.key);
-      if (favorites.some((f) => f.key === trial.key)) {
+      const ref = doc(db, 'users', user.uid, 'favorites', trial.nctId);
+      if (favorites.some((f) => f.nctId === trial.nctId)) {
         deleteDoc(ref).catch((err) => console.warn('[TrialWiz] failed to remove favorite:', err));
       } else {
+        const primary = trial.sites[0];
         setDoc(ref, {
-          key: trial.key,
           nctId: trial.nctId,
           cancerType: trial.cancerType,
           briefTitle: trial.briefTitle,
-          facility: trial.facility,
-          city: trial.city,
+          facility: primary?.facility ?? '',
+          city: primary?.city ?? '',
           savedAt: serverTimestamp(),
         }).catch((err) => console.warn('[TrialWiz] failed to save favorite:', err));
       }

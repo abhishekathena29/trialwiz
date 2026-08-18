@@ -2,22 +2,22 @@ import { signOut, type User } from 'firebase/auth';
 import type { FavoriteEntry } from '../../hooks/useFavorites';
 import { auth } from '../../firebase';
 import type { TrialSite } from '../../types';
+import { groupByNctId, type GroupedTrial } from '../../utils/groupTrials';
 import { AuthPanel } from './AuthPanel';
 import { TrialCard } from './TrialCard';
 
-function toTrialSite(f: FavoriteEntry): TrialSite {
+function toGroupedTrial(f: FavoriteEntry): GroupedTrial {
   return {
-    key: f.key,
+    key: f.nctId,
     nctId: f.nctId,
     briefTitle: f.briefTitle,
     conditions: [],
     cancerType: f.cancerType,
     overallStatus: 'RECRUITING',
     phases: [],
-    facility: f.facility,
-    city: f.city,
     metastatic: 'unspecified',
     lineOfTherapy: 'unspecified',
+    sites: f.facility ? [{ key: `${f.nctId}__saved`, facility: f.facility, city: f.city }] : [],
   };
 }
 
@@ -26,8 +26,8 @@ interface Props {
   authLoading: boolean;
   favorites: FavoriteEntry[];
   rows: TrialSite[];
-  onOpenDetail: (trial: TrialSite) => void;
-  onToggleFavorite: (trial: TrialSite) => void;
+  onOpenDetail: (trial: GroupedTrial) => void;
+  onToggleFavorite: (trial: GroupedTrial) => void;
 }
 
 export function SavedTrials({ user, authLoading, favorites, rows, onOpenDetail, onToggleFavorite }: Props) {
@@ -46,6 +46,8 @@ export function SavedTrials({ user, authLoading, favorites, rows, onOpenDetail, 
     );
   }
 
+  const liveByNctId = new Map(groupByNctId(rows).map((g) => [g.nctId, g]));
+
   return (
     <div>
       <div className="sechead">
@@ -62,10 +64,10 @@ export function SavedTrials({ user, authLoading, favorites, rows, onOpenDetail, 
       ) : (
         <div className="results">
           {favorites.map((f) => {
-            const trial = rows.find((r) => r.key === f.key) ?? toTrialSite(f);
+            const trial = liveByNctId.get(f.nctId) ?? toGroupedTrial(f);
             return (
               <TrialCard
-                key={f.key}
+                key={f.nctId}
                 trial={trial}
                 onOpenDetail={onOpenDetail}
                 isFavorite={true}

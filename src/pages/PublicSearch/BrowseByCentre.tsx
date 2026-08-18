@@ -8,14 +8,16 @@ export function BrowseByCentre({
   rows: TrialSite[];
   onOpenCentre: (facility: string, city: string) => void;
 }) {
-  const counts: Record<string, number> = {};
+  const seen: Record<string, Set<string>> = {};
   const info: Record<string, { facility: string; city: string }> = {};
   for (const r of rows) {
     const key = centreKey(r.facility, r.city);
-    counts[key] = (counts[key] || 0) + 1;
+    (seen[key] ??= new Set()).add(r.nctId);
     info[key] = { facility: r.facility, city: r.city };
   }
-  const items = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  const items = Object.entries(seen)
+    .map(([key, ids]) => [key, ids.size] as [string, number])
+    .sort((a, b) => b[1] - a[1]);
 
   return (
     <div>

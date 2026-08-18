@@ -1,15 +1,15 @@
-import type { TrialSite } from '../../types';
+import type { GroupedTrial } from '../../utils/groupTrials';
 import { BackIcon } from './icons';
 import { TrialCard } from './TrialCard';
 
 interface Props {
   title: string;
   subtitle: string;
-  rows: TrialSite[];
+  rows: GroupedTrial[];
   onBack: () => void;
-  onOpenDetail: (trial: TrialSite) => void;
-  isFavorite: (trial: TrialSite) => boolean;
-  onToggleFavorite: (trial: TrialSite) => void;
+  onOpenDetail: (trial: GroupedTrial) => void;
+  isFavorite: (trial: GroupedTrial) => boolean;
+  onToggleFavorite: (trial: GroupedTrial) => void;
 }
 
 export function TrialListView({ title, subtitle, rows, onBack, onOpenDetail, isFavorite, onToggleFavorite }: Props) {

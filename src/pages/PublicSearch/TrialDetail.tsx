@@ -1,6 +1,8 @@
-import type { TrialSite } from '../../types';
-import { daysSince, lowerFirst, telHref } from '../../utils/format';
+import { logUsage } from '../../analytics/usageLog';
+import type { GroupedTrial, TrialLocation } from '../../utils/groupTrials';
+import { daysSince, telHref } from '../../utils/format';
 import { parseEligibility } from '../../utils/eligibility';
+import { printTrial } from '../../utils/printTrial';
 import {
   BackIcon,
   CalendarIcon,
@@ -44,35 +46,42 @@ function formatDate(d: string | undefined): string {
   return new Date(t).toLocaleDateString('en-IN', { year: 'numeric', month: 'short' });
 }
 
-function printTrial(trial: TrialSite) {
-  const w = window.open('', '_blank');
-  if (!w) return;
-  const { inclusion, exclusion } = parseEligibility(trial.eligibilityCriteria);
-  w.document.write(`<!doctype html><html><head><title>${trial.nctId} — for your patient</title><style>
-    body{font-family:sans-serif;padding:30px;max-width:640px;margin:0 auto;color:#20343a}
-    h1{font-size:19px;margin:0 0 4px}
-    .muted{color:#666;font-size:12px}
-    h2{font-size:14px;margin:20px 0 6px}
-    ul{margin:4px 0;padding-left:20px}
-    .disc{margin-top:28px;font-size:12px;color:#666;border-top:1px solid #ccc;padding-top:12px}
-  </style></head><body>
-    <div class="muted">${trial.nctId}</div>
-    <h1>A study is recruiting for people with ${lowerFirst(trial.cancerType)}.</h1>
-    <p><b>${trial.facility}</b>${trial.city ? ` · ${trial.city}` : ''}${trial.state ? `, ${trial.state}` : ''}</p>
-    ${trial.contactPhone ? `<p>📞 ${trial.contactPhone}</p>` : ''}
-    ${trial.contactEmail ? `<p>✉ ${trial.contactEmail}</p>` : ''}
-    <h2>Study summary</h2>
-    <p>${trial.briefSummary || 'Not provided in the registry record.'}</p>
-    ${inclusion.length ? `<h2>Inclusion criteria</h2><ul>${inclusion.map((i) => `<li>${i}</li>`).join('')}</ul>` : ''}
-    ${exclusion.length ? `<h2>Exclusion criteria</h2><ul>${exclusion.map((i) => `<li>${i}</li>`).join('')}</ul>` : ''}
-    <div class="disc">An information directory of publicly registered clinical trials. It does not determine eligibility or give medical advice. Only the trial investigator at the site can determine eligibility.</div>
-  </body></html>`);
-  w.document.close();
-  w.print();
+function LocationCard({ site, label }: { site: TrialLocation; label: string }) {
+  const tel = telHref(site.contactPhone);
+  const contactHref = site.contactPhone ? `tel:${tel}` : site.contactEmail ? `mailto:${site.contactEmail}` : undefined;
+  return (
+    <div className="dcard loc">
+      <div className="dlab accent">
+        <PinIcon /> {label}
+      </div>
+      <div className="facname">{site.facility}</div>
+      <div className="address">
+        <PinIcon />
+        <span>{[site.city, site.state].filter(Boolean).join(', ') || 'Location on file with the registry'}</span>
+      </div>
+      {site.contactPhone && (
+        <a className="address" href={`tel:${tel}`}>
+          <PhoneIcon />
+          <span>{site.contactPhone}</span>
+        </a>
+      )}
+      {site.contactEmail && (
+        <a className="address" href={`mailto:${site.contactEmail}`}>
+          <MailIcon />
+          <span>{site.contactEmail}</span>
+        </a>
+      )}
+      {contactHref && (
+        <a className="contactcta" href={contactHref}>
+          <MailIcon /> Contact investigator
+        </a>
+      )}
+    </div>
+  );
 }
 
 interface Props {
-  trial: TrialSite;
+  trial: GroupedTrial;
   onBack: () => void;
   isFavorite?: boolean;
   onToggleFavorite?: () => void;
@@ -82,9 +91,10 @@ export function TrialDetail({ trial, onBack, isFavorite, onToggleFavorite }: Pro
   const days = daysSince(trial.lastUpdatePostDate);
   const stale = days != null && days > STALE_AFTER_DAYS;
   const fresh = days == null ? 'confirmation date unknown' : `registry record updated ${days} day${days === 1 ? '' : 's'} ago`;
-  const tel = telHref(trial.contactPhone);
+  const primary = trial.sites[0];
+  const otherSites = trial.sites.slice(1);
+  const tel = telHref(primary?.contactPhone);
   const { inclusion, exclusion } = parseEligibility(trial.eligibilityCriteria);
-  const contactHref = trial.contactPhone ? `tel:${tel}` : trial.contactEmail ? `mailto:${trial.contactEmail}` : undefined;
 
   return (
     <div className="detail">
@@ -113,10 +123,11 @@ export function TrialDetail({ trial, onBack, isFavorite, onToggleFavorite }: Pro
             </span>
           ))}
       </div>
-      <h1 className="dheadline">
-        A study is recruiting for people with {lowerFirst(trial.cancerType)}
+      <h1 className="dheadline">{trial.briefTitle}</h1>
+      <div className="dsub">
+        Recruiting for {trial.cancerType.toLowerCase()}
         {trial.metastatic === 'mentioned' ? ' — the record mentions advanced/metastatic disease' : ''}.
-      </h1>
+      </div>
 
       <div className="dcard">
         <div className="dlab">
@@ -140,35 +151,17 @@ export function TrialDetail({ trial, onBack, isFavorite, onToggleFavorite }: Pro
         </div>
       </div>
 
-      <div className="dcard loc">
-        <div className="dlab accent">
-          <PinIcon /> Primary location
-        </div>
-        <div className="facname">{trial.facility}</div>
-        <div className="address">
-          <PinIcon />
-          <span>
-            {[trial.city, trial.state].filter(Boolean).join(', ') || 'Location on file with the registry'}
-          </span>
-        </div>
-        {trial.contactPhone && (
-          <a className="address" href={`tel:${tel}`}>
-            <PhoneIcon />
-            <span>{trial.contactPhone}</span>
-          </a>
-        )}
-        {trial.contactEmail && (
-          <a className="address" href={`mailto:${trial.contactEmail}`}>
-            <MailIcon />
-            <span>{trial.contactEmail}</span>
-          </a>
-        )}
-        {contactHref && (
-          <a className="contactcta" href={contactHref}>
-            <MailIcon /> Contact investigator
-          </a>
-        )}
-      </div>
+      {primary && <LocationCard site={primary} label={trial.sites.length > 1 ? 'Nearest location' : 'Location'} />}
+      {otherSites.length > 0 && (
+        <>
+          <div className="sechead">
+            <h2>Also recruiting at {otherSites.length} more location{otherSites.length === 1 ? '' : 's'}</h2>
+          </div>
+          {otherSites.map((s, i) => (
+            <LocationCard key={s.key} site={s} label={`Location ${i + 2}`} />
+          ))}
+        </>
+      )}
 
       <div className="dcard">
         <div className="dlab">
@@ -220,15 +213,21 @@ export function TrialDetail({ trial, onBack, isFavorite, onToggleFavorite }: Pro
       </div>
 
       <div className="acts">
-        {trial.contactPhone && (
+        {primary?.contactPhone && (
           <a className="btn primary" href={`tel:${tel}`}>
-            Call site
+            Call nearest site
           </a>
         )}
         <a className="btn" href={`https://clinicaltrials.gov/study/${trial.nctId}`} target="_blank" rel="noopener">
           Registry record
         </a>
-        <span className="btn" onClick={() => printTrial(trial)}>
+        <span
+          className="btn"
+          onClick={() => {
+            printTrial(trial);
+            logUsage('click', 'Print for patient', trial.nctId);
+          }}
+        >
           Print for patient
         </span>
       </div>
