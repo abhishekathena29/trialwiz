@@ -1338,7 +1338,7 @@ a.address:hover {
   .tw-public .brand h1 {
     font-size: 14px;
   }
-  .tw-public .brand p {
+  .tw-public .brand p:not(.byline) {
     display: none;
   }
   .tw-public .modebadge {

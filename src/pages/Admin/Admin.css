@@ -465,7 +465,7 @@
   .tw-admin .kpis {
     grid-template-columns: 1fr;
   }
-  .tw-admin .brand p {
+  .tw-admin .brand p:not(.byline) {
     display: none;
   }
 }
