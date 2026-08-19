@@ -12,7 +12,7 @@ export function AdminHeader({ right }: { right?: ReactNode }) {
           <Logo />
           <div className="brand">
             <h1>TrialWiz · Demand Intelligence</h1>
-            <p className="byline">by Dr. Agarwal</p>
+            <p className="byline">by Dr. Veenoo Agarwal</p>
             <p>What India is searching for — the feasibility signal, in aggregate</p>
           </div>
           {right && <div className="who">{right}</div>}

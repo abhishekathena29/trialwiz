@@ -284,7 +284,7 @@ export function PublicSearch() {
           <Logo />
           <div className="brand">
             <h1>TrialWiz&nbsp;·&nbsp;Trial Finder</h1>
-            <p className="byline">by Dr. Agarwal</p>
+            <p className="byline">by Dr. Veenoo Agarwal</p>
             <p>Recruiting cancer trials in India — plain language, near your patient</p>
           </div>
           <span className="modebadge on">live API</span>
