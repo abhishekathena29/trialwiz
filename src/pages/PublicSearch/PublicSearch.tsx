@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { logDemand } from '../../analytics/demandLog';
 import { logUsage } from '../../analytics/usageLog';
 import { Logo } from '../../components/Logo';
@@ -288,7 +289,15 @@ export function PublicSearch() {
             <p className="byline">by Dr. Veenoo Agarwal</p>
             <p>Recruiting cancer trials in India — plain language, near your patient</p>
           </div>
-          <span className="modebadge on">live API</span>
+          <div className="headnav">
+            <Link className="navlink" to="/portal">
+              Provider login
+            </Link>
+            <button className="accountpill" onClick={() => changeSeg('saved')} title={user ? user.email ?? '' : 'Sign in to save trials'}>
+              {user ? user.email : 'Sign in'}
+            </button>
+            <span className="modebadge on">live API</span>
+          </div>
         </div>
       </header>
 
