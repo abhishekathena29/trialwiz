@@ -32,11 +32,85 @@ service cloud.firestore {
     match /users/{uid}/favorites/{trialKey} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
+
+    // Doctor / trial-coordinator provider portal (/portal). A user always reads/creates/
+    // updates their own profile; a doctor may additionally read (and approve/reject) a
+    // coordinator profile that named the doctor's email at sign-up. Coordinators cannot
+    // self-approve — `status` can only move to 'approved' via the doctor-approval branch.
+    match /users/{uid} {
+      // Covers both single-doc reads and the doctor dashboard's collection query — Firestore
+      // evaluates this per-document for `list` too, so a doctor's query only ever returns
+      // coordinator docs that named their own email, never anyone else's profile.
+      allow read: if request.auth != null && (
+        request.auth.uid == uid ||
+        (resource.data.role == 'coordinator' && resource.data.requestedDoctorEmail == request.auth.token.email)
+      );
+      allow create: if request.auth != null && isValidProfileCreate(uid, request.resource.data);
+      allow update: if isSelfProfileUpdate(uid, request.resource.data) || isDoctorApproval(request.resource.data);
+      allow delete: if false;
+    }
+
+    // Trials submitted by an approved coordinator, in the same TrialSite shape the public app
+    // already renders. Publicly readable (same as the ClinicalTrials.gov data it's merged
+    // with — no patient identity here, just public trial/facility info); only an approved
+    // coordinator can create one, and only that coordinator can edit/retire it afterwards.
+    match /submittedTrials/{id} {
+      allow read: if true;
+      allow create: if isApprovedCoordinator() &&
+        request.resource.data.submittedBy == request.auth.uid &&
+        request.resource.data.nctId == id &&
+        request.resource.data.listingStatus == 'published';
+      allow update: if request.auth != null && resource.data.submittedBy == request.auth.uid;
+      allow delete: if false;
+    }
   }
 
   function isAdmin() {
     return request.auth != null &&
       exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+  }
+
+  function isValidProfileCreate(uid, data) {
+    return request.auth.uid == uid && data.uid == uid &&
+      data.email is string && data.name is string &&
+      data.role in ['doctor', 'coordinator'] &&
+      (data.role == 'doctor' ||
+        (data.status == 'pending' &&
+         data.requestedDoctorEmail is string &&
+         data.facility is string && data.city is string));
+  }
+
+  // Owner can edit their own profile, but never grant themselves coordinator approval and
+  // never change their own uid/role.
+  function isSelfProfileUpdate(uid, data) {
+    return request.auth != null && request.auth.uid == uid &&
+      data.uid == uid && data.role == resource.data.role &&
+      (data.role == 'doctor' || data.status != 'approved' || resource.data.status == 'approved');
+  }
+
+  function isDoctor() {
+    return request.auth != null &&
+      exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+      get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'doctor';
+  }
+
+  // A doctor may only flip status/doctorUid on a coordinator profile that named their email —
+  // and can only ever set doctorUid to *their own* uid (approved) or null (rejected), never an
+  // arbitrary value, so the profile's doctor-link can't be forged to point elsewhere.
+  function isDoctorApproval(data) {
+    return isDoctor() &&
+      resource.data.role == 'coordinator' &&
+      resource.data.requestedDoctorEmail == request.auth.token.email &&
+      data.diff(resource.data).affectedKeys().hasOnly(['status', 'doctorUid']) &&
+      ((data.status == 'approved' && data.doctorUid == request.auth.uid) ||
+       (data.status == 'rejected' && data.doctorUid == null));
+  }
+
+  function isApprovedCoordinator() {
+    return request.auth != null &&
+      exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+      get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coordinator' &&
+      get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'approved';
   }
 
   function isValidDemandEvent(data) {

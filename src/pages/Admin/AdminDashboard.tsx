@@ -11,6 +11,8 @@ import {
   type UsageRecord,
 } from '../../analytics/aggregate';
 import { auth } from '../../firebase';
+import { useTrialCatalogue } from '../../hooks/useTrialCatalogue';
+import { countUniqueTrials, tallyByCancerType, tallyByCentre } from '../../utils/trialStats';
 import { AdminHeader } from './AdminHeader';
 
 const PERIODS: Array<[number, string]> = [
@@ -19,8 +21,8 @@ const PERIODS: Array<[number, string]> = [
   [365, 'Last 12 months'],
 ];
 
-function Bars({ rows }: { rows: [string, number][] }) {
-  if (!rows.length) return <div className="sup">No searches recorded in this period yet.</div>;
+function Bars({ rows, mask = true, emptyLabel = 'No searches recorded in this period yet.' }: { rows: [string, number][]; mask?: boolean; emptyLabel?: string }) {
+  if (!rows.length) return <div className="sup">{emptyLabel}</div>;
   const max = Math.max(...rows.map((r) => r[1]));
   return (
     <>
@@ -30,7 +32,7 @@ function Bars({ rows }: { rows: [string, number][] }) {
           <span className="track">
             <span className="fill" style={{ width: `${max ? Math.round((v / max) * 100) : 0}%` }} />
           </span>
-          <span className="v">{displayCount(v)}</span>
+          <span className="v">{mask ? displayCount(v) : v.toLocaleString()}</span>
         </div>
       ))}
     </>
@@ -115,6 +117,7 @@ function toUsageCsv(records: UsageRecord[]): string {
 }
 
 export function AdminDashboard({ user }: { user: User }) {
+  const { rows: catalogueRows, loading: catalogueLoading } = useTrialCatalogue();
   const [periodDays, setPeriodDays] = useState(90);
   const [records, setRecords] = useState<DemandRecord[] | null>(null);
   const [usageRecords, setUsageRecords] = useState<UsageRecord[] | null>(null);
@@ -149,6 +152,19 @@ export function AdminDashboard({ user }: { user: User }) {
 
   const agg = useMemo(() => (records ? aggregateDemand(records) : null), [records]);
   const usageAgg = useMemo(() => (usageRecords ? aggregateUsage(usageRecords) : null), [usageRecords]);
+
+  const catalogue = useMemo(() => {
+    const totalTrials = countUniqueTrials(catalogueRows);
+    const submittedRows = catalogueRows.filter((r) => r.nctId.startsWith('TW-'));
+    const centres = tallyByCentre(catalogueRows);
+    return {
+      totalTrials,
+      submittedTrials: countUniqueTrials(submittedRows),
+      byCancer: Object.entries(tallyByCancerType(catalogueRows)).sort((a, b) => b[1] - a[1]),
+      byCentre: centres.slice(0, 10),
+      centreCount: centres.length,
+    };
+  }, [catalogueRows]);
 
   function exportCsv() {
     if (!records) return;
@@ -210,6 +226,47 @@ export function AdminDashboard({ user }: { user: User }) {
           <div className="note" style={{ borderStyle: 'solid', background: 'var(--red-w)', color: 'var(--red)' }}>
             {error}
           </div>
+        )}
+
+        <div className="sechead2">
+          <h2>Trial catalogue</h2>
+          <span className="sup">
+            Live from ClinicalTrials.gov + doctor/coordinator submissions — updates automatically, no refresh needed
+          </span>
+        </div>
+        {catalogueLoading && catalogueRows.length === 0 ? (
+          <div className="note">Loading trial catalogue…</div>
+        ) : (
+          <>
+            <div className="kpis">
+              <div className="kpi">
+                <div className="n">{catalogue.totalTrials}</div>
+                <div className="l">Total recruiting trials</div>
+              </div>
+              <div className="kpi">
+                <div className="n">{catalogue.centreCount}</div>
+                <div className="l">Distinct centres</div>
+              </div>
+              <div className="kpi">
+                <div className="n">{catalogue.submittedTrials}</div>
+                <div className="l">Coordinator-submitted</div>
+              </div>
+            </div>
+            <div className="cols">
+              <div className="card">
+                <h2>Trials by cancer type</h2>
+                <Bars rows={catalogue.byCancer} mask={false} emptyLabel="No trials in the catalogue yet." />
+              </div>
+              <div className="card">
+                <h2>Top centres by trial count</h2>
+                <Bars
+                  rows={catalogue.byCentre.map((c) => [`${c.facility}, ${c.city}`, c.count] as [string, number])}
+                  mask={false}
+                  emptyLabel="No centres in the catalogue yet."
+                />
+              </div>
+            </div>
+          </>
         )}
 
         {!agg ? (

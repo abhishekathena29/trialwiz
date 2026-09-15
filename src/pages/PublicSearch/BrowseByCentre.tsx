@@ -1,5 +1,6 @@
 import type { TrialSite } from '../../types';
-import { centreKey, initials } from '../../utils/format';
+import { initials } from '../../utils/format';
+import { tallyByCentre } from '../../utils/trialStats';
 
 export function BrowseByCentre({
   rows,
@@ -8,16 +9,7 @@ export function BrowseByCentre({
   rows: TrialSite[];
   onOpenCentre: (facility: string, city: string) => void;
 }) {
-  const seen: Record<string, Set<string>> = {};
-  const info: Record<string, { facility: string; city: string }> = {};
-  for (const r of rows) {
-    const key = centreKey(r.facility, r.city);
-    (seen[key] ??= new Set()).add(r.nctId);
-    info[key] = { facility: r.facility, city: r.city };
-  }
-  const items = Object.entries(seen)
-    .map(([key, ids]) => [key, ids.size] as [string, number])
-    .sort((a, b) => b[1] - a[1]);
+  const items = tallyByCentre(rows);
 
   return (
     <div>
@@ -27,8 +19,7 @@ export function BrowseByCentre({
       </div>
       <div className="clist">
         {items.length ? (
-          items.map(([key, n]) => {
-            const { facility, city } = info[key];
+          items.map(({ key, facility, city, count }) => {
             return (
               <button key={key} className="crow" onClick={() => onOpenCentre(facility, city)}>
                 <div className="ci">{initials(facility)}</div>
@@ -37,7 +28,7 @@ export function BrowseByCentre({
                   <span>{city}</span>
                 </div>
                 <div className="cb">
-                  {n} {n === 1 ? 'trial' : 'trials'}
+                  {count} {count === 1 ? 'trial' : 'trials'}
                 </div>
               </button>
             );

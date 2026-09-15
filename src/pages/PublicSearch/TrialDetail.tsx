@@ -95,6 +95,7 @@ export function TrialDetail({ trial, onBack, isFavorite, onToggleFavorite }: Pro
   const otherSites = trial.sites.slice(1);
   const tel = telHref(primary?.contactPhone);
   const { inclusion, exclusion } = parseEligibility(trial.eligibilityCriteria);
+  const isRegistryTrial = /^NCT\d/.test(trial.nctId);
 
   return (
     <div className="detail">
@@ -218,9 +219,15 @@ export function TrialDetail({ trial, onBack, isFavorite, onToggleFavorite }: Pro
             Call nearest site
           </a>
         )}
-        <a className="btn" href={`https://clinicaltrials.gov/study/${trial.nctId}`} target="_blank" rel="noopener">
-          Registry record
-        </a>
+        {isRegistryTrial ? (
+          <a className="btn" href={`https://clinicaltrials.gov/study/${trial.nctId}`} target="_blank" rel="noopener">
+            Registry record
+          </a>
+        ) : (
+          <span className="pill" title="Added directly by a hospital's trial coordinator, not from ClinicalTrials.gov">
+            Hospital-submitted
+          </span>
+        )}
         <span
           className="btn"
           onClick={() => {

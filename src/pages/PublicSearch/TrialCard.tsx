@@ -80,6 +80,7 @@ export function TrialCard({ trial, onOpenDetail, isFavorite, onToggleFavorite }:
   const metastaticNote = trial.metastatic === 'mentioned' ? 'advanced/metastatic disease mentioned' : '';
   const why = [trial.cancerType, primary?.city, setLabel, metastaticNote].filter(Boolean).join(' · ');
   const moreSites = trial.sites.slice(1);
+  const isRegistryTrial = /^NCT\d/.test(trial.nctId);
 
   return (
     <div id={`trial-${trial.key}`} className={`trial${stale ? ' stale' : ''}`}>
@@ -162,15 +163,21 @@ export function TrialCard({ trial, onOpenDetail, isFavorite, onToggleFavorite }:
             Call nearest site
           </a>
         )}
-        <a
-          className="btn"
-          href={`https://clinicaltrials.gov/study/${trial.nctId}`}
-          target="_blank"
-          rel="noopener"
-          onClick={() => logUsage('click', 'Registry record', trial.nctId)}
-        >
-          Registry record
-        </a>
+        {isRegistryTrial ? (
+          <a
+            className="btn"
+            href={`https://clinicaltrials.gov/study/${trial.nctId}`}
+            target="_blank"
+            rel="noopener"
+            onClick={() => logUsage('click', 'Registry record', trial.nctId)}
+          >
+            Registry record
+          </a>
+        ) : (
+          <span className="pill" title="Added directly by a hospital's trial coordinator, not from ClinicalTrials.gov">
+            Hospital-submitted
+          </span>
+        )}
         <span
           className="btn"
           onClick={() => {

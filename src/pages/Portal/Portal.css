@@ -1,0 +1,117 @@
+/* Layered on top of Admin.css's .tw-admin design tokens — only the bits the portal needs
+ * that the admin dashboard doesn't already have. */
+
+.tw-admin .roletoggle {
+  display: flex;
+  gap: 8px;
+  margin: 4px 0 14px;
+}
+.tw-admin .roletoggle button {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1.5px solid var(--line);
+  background: #fff;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  color: var(--muted);
+}
+.tw-admin .roletoggle button.on {
+  border-color: var(--brand, #6423b8);
+  color: var(--brand, #6423b8);
+  background: var(--brand-w, #f4edfc);
+}
+
+.tw-admin .pill {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.tw-admin .pill.pending {
+  background: #fff4d9;
+  color: #9a6b00;
+}
+.tw-admin .pill.approved {
+  background: #e3f7e9;
+  color: #16794b;
+}
+.tw-admin .pill.rejected {
+  background: var(--red-w, #fbe6e6);
+  color: var(--red, #b0281f);
+}
+.tw-admin .pill.published {
+  background: #e3f7e9;
+  color: #16794b;
+}
+.tw-admin .pill.retired {
+  background: #ece8f2;
+  color: #6a6178;
+}
+
+.tw-admin .reqrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 4px;
+  border-bottom: 1px solid var(--line);
+}
+.tw-admin .reqrow:last-child {
+  border-bottom: none;
+}
+.tw-admin .reqinfo {
+  flex: 1;
+  min-width: 0;
+}
+.tw-admin .reqinfo b {
+  display: block;
+  font-size: 13.5px;
+}
+.tw-admin .reqinfo span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.tw-admin .reqactions {
+  display: flex;
+  gap: 8px;
+}
+
+.tw-admin .form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
+}
+.tw-admin .form-grid .span2 {
+  grid-column: 1 / -1;
+}
+.tw-admin .form-grid label {
+  display: block;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.tw-admin .form-grid input,
+.tw-admin .form-grid select,
+.tw-admin .form-grid textarea {
+  width: 100%;
+  padding: 9px 10px;
+  border-radius: 8px;
+  border: 1.5px solid var(--line);
+  font-size: 13.5px;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+.tw-admin .form-grid textarea {
+  resize: vertical;
+  min-height: 70px;
+}
+@media (max-width: 640px) {
+  .tw-admin .form-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,5 +1,6 @@
 import { CANCERS, groupOf, SOLID_SYSTEMS, SYS } from '../../data/cancerTaxonomy';
 import type { TrialSite } from '../../types';
+import { countUniqueTrials, tallyByCancerType } from '../../utils/trialStats';
 
 interface Props {
   rows: TrialSite[];
@@ -8,20 +9,6 @@ interface Props {
   onGroupChange: (g: 'solid' | 'blood') => void;
   onSystemChange: (s: string) => void;
   onOpenCancer: (cancerType: string) => void;
-}
-
-/** Counts unique trials (NCT ids), not site rows — a trial with several India sites
- * should tally as one trial, not one per site. */
-function tally(rows: TrialSite[]): Record<string, number> {
-  const seen: Record<string, Set<string>> = {};
-  for (const r of rows) (seen[r.cancerType] ??= new Set()).add(r.nctId);
-  const out: Record<string, number> = {};
-  for (const [k, ids] of Object.entries(seen)) out[k] = ids.size;
-  return out;
-}
-
-function countUniqueTrials(rows: TrialSite[]): number {
-  return new Set(rows.map((r) => r.nctId)).size;
 }
 
 function Tiles({ list, onOpen }: { list: [string, number][]; onOpen: (c: string) => void }) {
@@ -46,7 +33,7 @@ function Tiles({ list, onOpen }: { list: [string, number][]; onOpen: (c: string)
 }
 
 export function BrowseByCancer({ rows, group, system, onGroupChange, onSystemChange, onOpenCancer }: Props) {
-  const t = tally(rows);
+  const t = tallyByCancerType(rows);
   const solidN = countUniqueTrials(rows.filter((r) => groupOf(r.cancerType) === 'solid'));
   const bloodN = countUniqueTrials(rows.filter((r) => groupOf(r.cancerType) === 'blood'));
 

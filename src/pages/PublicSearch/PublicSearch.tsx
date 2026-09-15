@@ -6,7 +6,7 @@ import { CITIES, matchCity } from '../../data/cities';
 import { REGIONS, normalizeState } from '../../data/regions';
 import { useAuthUser } from '../../hooks/useAuthUser';
 import { useFavorites } from '../../hooks/useFavorites';
-import { useIndiaCancerTrials } from '../../hooks/useIndiaCancerTrials';
+import { useTrialCatalogue } from '../../hooks/useTrialCatalogue';
 import type { TrialSite } from '../../types';
 import { centreKey } from '../../utils/format';
 import { haversineKm } from '../../utils/geo';
@@ -26,7 +26,7 @@ type LocMode = 'none' | 'gps' | 'city' | 'region';
 type ActiveList = { kind: 'cancer'; value: string } | { kind: 'centre'; facility: string; city: string } | null;
 
 export function PublicSearch() {
-  const { rows, loading, error, fetchedAt, refetch } = useIndiaCancerTrials();
+  const { rows, loading, error, fetchedAt, refetch } = useTrialCatalogue();
   const { user, loading: authLoading } = useAuthUser();
   const { favorites, isFavorite, toggleFavorite } = useFavorites(user);
 
@@ -215,8 +215,9 @@ export function PublicSearch() {
 
   function openCentre(facility: string, city: string) {
     setActiveList({ kind: 'centre', facility, city });
+    const key = centreKey(facility, city);
     const matches = scopedRows
-      .filter((r) => r.facility === facility && r.city === city)
+      .filter((r) => centreKey(r.facility, r.city) === key)
       .sort((a, b) => (a.distanceKm ?? 9e9) - (b.distanceKm ?? 9e9));
     logDemand({
       cond: matches[0]?.cancerType ?? '(browse)',
