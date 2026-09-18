@@ -19,6 +19,7 @@ export interface TrialSite {
   contactName?: string;
   contactPhone?: string;
   contactEmail?: string;
+  principalInvestigatorPhone?: string;
   lastUpdatePostDate?: string;
   /** Heuristic facets, derived from free-text registry fields — never structured API data. */
   metastatic: 'mentioned' | 'early-stage' | 'unspecified';

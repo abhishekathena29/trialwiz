@@ -196,11 +196,15 @@
   border-radius: 7px;
   height: 18px;
   overflow: hidden;
+  position: relative;
 }
 .tw-admin .bar .fill {
+  display: block;
   height: 100%;
-  background: var(--grad);
+  background: var(--grad, linear-gradient(135deg, #f26a5d 0%, #c43c8e 52%, #7a2fd0 100%));
   border-radius: 7px;
+  min-width: 4px;
+  transition: width 0.3s ease;
 }
 .tw-admin .bar .v {
   width: 46px;

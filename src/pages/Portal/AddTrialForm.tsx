@@ -40,6 +40,7 @@ export function AddTrialForm({ user, profile, onSubmitted }: { user: User; profi
   const [state, setState] = useState(profile.state ?? '');
   const [contactName, setContactName] = useState(profile.name ?? '');
   const [contactPhone, setContactPhone] = useState('');
+  const [piPhone, setPiPhone] = useState('');
   const [contactEmail, setContactEmail] = useState(profile.email ?? '');
   const [eligibilityCriteria, setEligibilityCriteria] = useState('');
   const [briefSummary, setBriefSummary] = useState('');
@@ -59,7 +60,8 @@ export function AddTrialForm({ user, profile, onSubmitted }: { user: User; profi
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!canSubmit || !profile.doctorUid) return;
+    const resolvedDoctorUid = profile.doctorUid || (profile.role === 'doctor' ? user.uid : null);
+    if (!canSubmit || !resolvedDoctorUid) return;
     setBusy(true);
     setErr('');
     try {
@@ -85,6 +87,7 @@ export function AddTrialForm({ user, profile, onSubmitted }: { user: User; profi
         contactName: contactName.trim() || undefined,
         contactPhone: contactPhone.trim() || undefined,
         contactEmail: contactEmail.trim() || undefined,
+        principalInvestigatorPhone: piPhone.trim() || undefined,
         lastUpdatePostDate: new Date().toISOString().slice(0, 10),
         metastatic,
         lineOfTherapy,
@@ -95,7 +98,7 @@ export function AddTrialForm({ user, profile, onSubmitted }: { user: User; profi
         startDate: startDate || undefined,
         submittedBy: user.uid,
         submittedByName: profile.name,
-        doctorUid: profile.doctorUid,
+        doctorUid: resolvedDoctorUid,
       });
       setDone(true);
       setBriefTitle('');
@@ -105,6 +108,8 @@ export function AddTrialForm({ user, profile, onSubmitted }: { user: User; profi
       setEnrollmentCount('');
       setStartDate('');
       setPhases([]);
+      setContactPhone('');
+      setPiPhone('');
       onSubmitted?.();
     } catch (e) {
       console.error('[TrialWiz] trial submission failed:', e);
@@ -180,8 +185,12 @@ export function AddTrialForm({ user, profile, onSubmitted }: { user: User; profi
             <input id="contactName" value={contactName} onChange={(e) => setContactName(e.target.value)} />
           </div>
           <div>
-            <label htmlFor="contactPhone">Contact phone</label>
-            <input id="contactPhone" value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} />
+            <label htmlFor="contactPhone">Coordinator / site phone</label>
+            <input id="contactPhone" value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} placeholder="e.g. 022-24177000" />
+          </div>
+          <div>
+            <label htmlFor="piPhone">Principal Investigator phone</label>
+            <input id="piPhone" type="tel" value={piPhone} onChange={(e) => setPiPhone(e.target.value)} placeholder="e.g. +91 98765 43210" />
           </div>
           <div className="span2">
             <label htmlFor="contactEmail">Contact email</label>

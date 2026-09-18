@@ -34,7 +34,10 @@ function Bars({ rows, mask = true, emptyLabel = 'No searches recorded in this pe
         <div className="bar" key={k}>
           <span className="k">{k}</span>
           <span className="track">
-            <span className="fill" style={{ width: `${max ? Math.round((v / max) * 100) : 0}%` }} />
+            <span
+              className="fill"
+              style={{ width: `${max && v > 0 ? Math.max(4, Math.round((v / max) * 100)) : 0}%` }}
+            />
           </span>
           <span className="v">{mask ? displayCount(v) : v.toLocaleString()}</span>
         </div>
@@ -127,8 +130,8 @@ export function AdminDashboard({ user }: { user: User }) {
   const [usageRecords, setUsageRecords] = useState<UsageRecord[] | null>(null);
   const [error, setError] = useState('');
 
-  // Admin Tab: 'doctors' | 'demand' | 'catalogue'
-  const [adminTab, setAdminTab] = useState<'doctors' | 'demand' | 'catalogue'>('doctors');
+  // Admin Tab: 'demand' | 'catalogue' | 'doctors'
+  const [adminTab, setAdminTab] = useState<'demand' | 'catalogue' | 'doctors'>('demand');
   const [doctors, setDoctors] = useState<UserProfile[]>([]);
   const [claims, setClaims] = useState<TrialClaim[]>([]);
   const [createDoctorOpen, setCreateDoctorOpen] = useState(false);
@@ -292,15 +295,6 @@ export function AdminDashboard({ user }: { user: User }) {
         {/* Navigation Tabs */}
         <div className="portal-tabs" style={{ marginBottom: 20 }}>
           <button
-            className={`portal-tab ${adminTab === 'doctors' ? 'active' : ''}`}
-            onClick={() => setAdminTab('doctors')}
-          >
-            🩺 Principal Investigator Accounts ({approvedDoctors.length})
-            {pendingDoctors.length > 0 && (
-              <span className="tab-pending-badge">{pendingDoctors.length}</span>
-            )}
-          </button>
-          <button
             className={`portal-tab ${adminTab === 'demand' ? 'active' : ''}`}
             onClick={() => setAdminTab('demand')}
           >
@@ -312,9 +306,232 @@ export function AdminDashboard({ user }: { user: User }) {
           >
             🗂 Trial Catalogue ({catalogue.totalTrials})
           </button>
+          <button
+            className={`portal-tab ${adminTab === 'doctors' ? 'active' : ''}`}
+            onClick={() => setAdminTab('doctors')}
+          >
+            🩺 Principal Investigator Accounts ({approvedDoctors.length})
+            {pendingDoctors.length > 0 && (
+              <span className="tab-pending-badge">{pendingDoctors.length}</span>
+            )}
+          </button>
         </div>
 
-        {/* TAB 1: DOCTORS & PI APPROVALS */}
+        {/* TAB 1: DEMAND & USAGE INTELLIGENCE */}
+        {adminTab === 'demand' && (
+          <div>
+            <div className="sechead2" style={{ marginTop: 0 }}>
+              <h2>Demand Intelligence & Usage Analytics</h2>
+              <span className="sup">Aggregate signals from patient & doctor searches on TrialWiz</span>
+            </div>
+
+            {!agg ? (
+              <div className="note">Loading demand data…</div>
+            ) : (
+              <>
+                <div className="kpis">
+                  <div className="kpi">
+                    <div className="n">{displayCount(agg.totalSearches)}</div>
+                    <div className="l">Searches ({periodDays} days)</div>
+                  </div>
+                  <div className="kpi">
+                    <div className="n">{displayCount(agg.distinctCities)}</div>
+                    <div className="l">Cities / regions</div>
+                  </div>
+                  <div className="kpi">
+                    <div className="n warn">{agg.zeroResultPct}%</div>
+                    <div className="l">No matching trial</div>
+                    <div className="d">unmet demand — the sellable signal</div>
+                  </div>
+                  <div className="kpi">
+                    <div className="n">{displayCount(agg.distinctCancerTypes)}</div>
+                    <div className="l">Cancer types searched</div>
+                  </div>
+                </div>
+
+                <div className="cols">
+                  <div className="card">
+                    <h2>Top demand by cancer type</h2>
+                    <Bars rows={agg.byCancer} />
+                  </div>
+                  <div className="card">
+                    <h2>Top demand by location</h2>
+                    <Bars rows={agg.byCity} />
+                  </div>
+                </div>
+
+                <div className="card full">
+                  <h2>Unmet demand — highest-value signal (searches with no site in range)</h2>
+                  <div className="tablewrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Cancer / setting</th>
+                        <th>Region</th>
+                        <th>Searches ({periodDays}d)</th>
+                        <th>Priority</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {agg.unmet.length === 0 ? (
+                        <tr>
+                          <td colSpan={4} className="sup">
+                            No unmet-demand searches recorded in this period.
+                          </td>
+                        </tr>
+                      ) : (
+                        agg.unmet.slice(0, 20).map((row) => {
+                          const tag = priorityTag(row.searches);
+                          return (
+                            <tr key={`${row.cond}__${row.where}`}>
+                              <td>
+                                <b>{row.cond}</b>
+                              </td>
+                              <td>{row.where}</td>
+                              <td className="gap">{displayCount(row.searches)}</td>
+                              <td>
+                                <span className={`tag ${tag.cls}`}>{tag.label}</span>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                  </div>
+                  <div className="note" style={{ marginTop: 14 }}>
+                    <b>How to read this.</b> Each row is a place where patients (or their oncologists) are actively
+                    looking for a trial with no recruiting site in range. For a sponsor planning an India arm, this is a
+                    demand-led site-selection input. Cells below 5 searches are shown as <code>&lt;5</code> — see the
+                    guardrail note below.
+                  </div>
+                </div>
+
+                <div className="card full">
+                  <h2>Demand by therapy setting</h2>
+                  <Bars rows={agg.bySetting} />
+                </div>
+
+                <div className="sechead2">
+                  <h2>Usage activity</h2>
+                  <span className="sup">Auto-collected: searches, browse taps, location changes, trial-card clicks, sign-ups, favorites</span>
+                </div>
+                {!usageAgg ? (
+                  <div className="note">Loading usage data…</div>
+                ) : (
+                  <>
+                    <div className="kpis">
+                      <div className="kpi">
+                        <div className="n">{displayCount(usageAgg.totalEvents)}</div>
+                        <div className="l">Events ({periodDays} days)</div>
+                      </div>
+                      <div className="kpi">
+                        <div className="n">{displayCount(usageAgg.signups)}</div>
+                        <div className="l">New accounts</div>
+                      </div>
+                      <div className="kpi">
+                        <div className="n">{displayCount(usageAgg.signins)}</div>
+                        <div className="l">Sign-ins</div>
+                      </div>
+                      <div className="kpi">
+                        <div className="n">{displayCount(usageAgg.favorites)}</div>
+                        <div className="l">Favorite toggles</div>
+                      </div>
+                    </div>
+
+                    <div className="cols">
+                      <div className="card">
+                        <h2>Activity by type</h2>
+                        <Bars rows={usageAgg.byType} />
+                      </div>
+                      <div className="card">
+                        <h2>Top browsed (cancer type / centre)</h2>
+                        <Bars rows={usageAgg.topBrowsed} />
+                      </div>
+                    </div>
+                    <div className="cols">
+                      <div className="card">
+                        <h2>Top trial-card clicks</h2>
+                        <Bars rows={usageAgg.topClicked} />
+                      </div>
+                      <div className="card">
+                        <h2>Top location changes</h2>
+                        <Bars rows={usageAgg.topLocations} />
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                <div className="note">
+                  <b>Guardrails baked in.</b> Aggregate counts and geographies only — no patient identity, no phone
+                  number, no linkage to a person, ever. <b>k-anonymity:</b> any cell smaller than <code>5</code> is
+                  suppressed and shown as "&lt;5". This dashboard lives behind Firebase Auth + a Firestore{' '}
+                  <code>admins</code> allowlist; the public app never reads this collection, only writes to it.
+                </div>
+
+                <div className="actions">
+                  <button className="btn primary" onClick={exportPdf} disabled={!records || records.length === 0}>
+                    Generate sponsor report (PDF)
+                  </button>
+                  <button className="btn" onClick={exportCsv} disabled={!records || records.length === 0}>
+                    Export aggregate dataset (CSV)
+                  </button>
+                  <button className="btn" onClick={exportUsageCsv} disabled={!usageRecords || usageRecords.length === 0}>
+                    Export usage events (CSV)
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* TAB 2: TRIAL CATALOGUE */}
+        {adminTab === 'catalogue' && (
+          <div>
+            <div className="sechead2" style={{ marginTop: 0 }}>
+              <h2>Trial catalogue</h2>
+              <span className="sup">
+                Live from ClinicalTrials.gov + doctor/coordinator submissions — updates automatically, no refresh needed
+              </span>
+            </div>
+            {catalogueLoading && catalogueRows.length === 0 ? (
+              <div className="note">Loading trial catalogue…</div>
+            ) : (
+              <>
+                <div className="kpis">
+                  <div className="kpi">
+                    <div className="n">{catalogue.totalTrials}</div>
+                    <div className="l">Total recruiting trials</div>
+                  </div>
+                  <div className="kpi">
+                    <div className="n">{catalogue.centreCount}</div>
+                    <div className="l">Distinct centres</div>
+                  </div>
+                  <div className="kpi">
+                    <div className="n">{catalogue.submittedTrials}</div>
+                    <div className="l">Coordinator-submitted</div>
+                  </div>
+                </div>
+                <div className="cols">
+                  <div className="card">
+                    <h2>Trials by cancer type</h2>
+                    <Bars rows={catalogue.byCancer} mask={false} emptyLabel="No trials in the catalogue yet." />
+                  </div>
+                  <div className="card">
+                    <h2>Top centres by trial count</h2>
+                    <Bars
+                      rows={catalogue.byCentre.map((c) => [`${c.facility}, ${c.city}`, c.count] as [string, number])}
+                      mask={false}
+                      emptyLabel="No centres in the catalogue yet."
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* TAB 3: DOCTORS & PI APPROVALS */}
         {adminTab === 'doctors' && (
           <div>
             <div className="admin-section-head">
@@ -507,232 +724,18 @@ export function AdminDashboard({ user }: { user: User }) {
             )}
           </div>
         )}
-
-        {/* TAB 2: TRIAL CATALOGUE */}
-        {adminTab === 'catalogue' && (
-          <div>
-            <div className="sechead2" style={{ marginTop: 0 }}>
-              <h2>Trial catalogue</h2>
-              <span className="sup">
-                Live from ClinicalTrials.gov + doctor/coordinator submissions — updates automatically, no refresh needed
-              </span>
-            </div>
-            {catalogueLoading && catalogueRows.length === 0 ? (
-              <div className="note">Loading trial catalogue…</div>
-            ) : (
-              <>
-            <div className="kpis">
-              <div className="kpi">
-                <div className="n">{catalogue.totalTrials}</div>
-                <div className="l">Total recruiting trials</div>
-              </div>
-              <div className="kpi">
-                <div className="n">{catalogue.centreCount}</div>
-                <div className="l">Distinct centres</div>
-              </div>
-              <div className="kpi">
-                <div className="n">{catalogue.submittedTrials}</div>
-                <div className="l">Coordinator-submitted</div>
-              </div>
-            </div>
-            <div className="cols">
-              <div className="card">
-                <h2>Trials by cancer type</h2>
-                <Bars rows={catalogue.byCancer} mask={false} emptyLabel="No trials in the catalogue yet." />
-              </div>
-              <div className="card">
-                <h2>Top centres by trial count</h2>
-                <Bars
-                  rows={catalogue.byCentre.map((c) => [`${c.facility}, ${c.city}`, c.count] as [string, number])}
-                  mask={false}
-                  emptyLabel="No centres in the catalogue yet."
-                />
-              </div>
-            </div>
-          </>
-        )}
       </div>
-    )}
 
-    {/* TAB 3: DEMAND & USAGE INTELLIGENCE */}
-    {adminTab === 'demand' && (
-      <div>
-        <div className="sechead2" style={{ marginTop: 0 }}>
-          <h2>Demand Intelligence & Usage Analytics</h2>
-          <span className="sup">Aggregate signals from patient & doctor searches on TrialWiz</span>
-        </div>
-
-        {!agg ? (
-          <div className="note">Loading demand data…</div>
-        ) : (
-          <>
-            <div className="kpis">
-              <div className="kpi">
-                <div className="n">{displayCount(agg.totalSearches)}</div>
-                <div className="l">Searches ({periodDays} days)</div>
-              </div>
-              <div className="kpi">
-                <div className="n">{displayCount(agg.distinctCities)}</div>
-                <div className="l">Cities / regions</div>
-              </div>
-              <div className="kpi">
-                <div className="n warn">{agg.zeroResultPct}%</div>
-                <div className="l">No matching trial</div>
-                <div className="d">unmet demand — the sellable signal</div>
-              </div>
-              <div className="kpi">
-                <div className="n">{displayCount(agg.distinctCancerTypes)}</div>
-                <div className="l">Cancer types searched</div>
-              </div>
-            </div>
-
-            <div className="cols">
-              <div className="card">
-                <h2>Top demand by cancer type</h2>
-                <Bars rows={agg.byCancer} />
-              </div>
-              <div className="card">
-                <h2>Top demand by location</h2>
-                <Bars rows={agg.byCity} />
-              </div>
-            </div>
-
-            <div className="card full">
-              <h2>Unmet demand — highest-value signal (searches with no site in range)</h2>
-              <div className="tablewrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Cancer / setting</th>
-                    <th>Region</th>
-                    <th>Searches ({periodDays}d)</th>
-                    <th>Priority</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {agg.unmet.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="sup">
-                        No unmet-demand searches recorded in this period.
-                      </td>
-                    </tr>
-                  ) : (
-                    agg.unmet.slice(0, 20).map((row) => {
-                      const tag = priorityTag(row.searches);
-                      return (
-                        <tr key={`${row.cond}__${row.where}`}>
-                          <td>
-                            <b>{row.cond}</b>
-                          </td>
-                          <td>{row.where}</td>
-                          <td className="gap">{displayCount(row.searches)}</td>
-                          <td>
-                            <span className={`tag ${tag.cls}`}>{tag.label}</span>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-              </div>
-              <div className="note" style={{ marginTop: 14 }}>
-                <b>How to read this.</b> Each row is a place where patients (or their oncologists) are actively
-                looking for a trial with no recruiting site in range. For a sponsor planning an India arm, this is a
-                demand-led site-selection input. Cells below 5 searches are shown as <code>&lt;5</code> — see the
-                guardrail note below.
-              </div>
-            </div>
-
-            <div className="card full">
-              <h2>Demand by therapy setting</h2>
-              <Bars rows={agg.bySetting} />
-            </div>
-
-            <div className="sechead2">
-              <h2>Usage activity</h2>
-              <span className="sup">Auto-collected: searches, browse taps, location changes, trial-card clicks, sign-ups, favorites</span>
-            </div>
-            {!usageAgg ? (
-              <div className="note">Loading usage data…</div>
-            ) : (
-              <>
-                <div className="kpis">
-                  <div className="kpi">
-                    <div className="n">{displayCount(usageAgg.totalEvents)}</div>
-                    <div className="l">Events ({periodDays} days)</div>
-                  </div>
-                  <div className="kpi">
-                    <div className="n">{displayCount(usageAgg.signups)}</div>
-                    <div className="l">New accounts</div>
-                  </div>
-                  <div className="kpi">
-                    <div className="n">{displayCount(usageAgg.signins)}</div>
-                    <div className="l">Sign-ins</div>
-                  </div>
-                  <div className="kpi">
-                    <div className="n">{displayCount(usageAgg.favorites)}</div>
-                    <div className="l">Favorite toggles</div>
-                  </div>
-                </div>
-
-                <div className="cols">
-                  <div className="card">
-                    <h2>Activity by type</h2>
-                    <Bars rows={usageAgg.byType} />
-                  </div>
-                  <div className="card">
-                    <h2>Top browsed (cancer type / centre)</h2>
-                    <Bars rows={usageAgg.topBrowsed} />
-                  </div>
-                </div>
-                <div className="cols">
-                  <div className="card">
-                    <h2>Top trial-card clicks</h2>
-                    <Bars rows={usageAgg.topClicked} />
-                  </div>
-                  <div className="card">
-                    <h2>Top location changes</h2>
-                    <Bars rows={usageAgg.topLocations} />
-                  </div>
-                </div>
-              </>
-            )}
-
-            <div className="note">
-              <b>Guardrails baked in.</b> Aggregate counts and geographies only — no patient identity, no phone
-              number, no linkage to a person, ever. <b>k-anonymity:</b> any cell smaller than <code>5</code> is
-              suppressed and shown as "&lt;5". This dashboard lives behind Firebase Auth + a Firestore{' '}
-              <code>admins</code> allowlist; the public app never reads this collection, only writes to it.
-            </div>
-
-            <div className="actions">
-              <button className="btn primary" onClick={exportPdf} disabled={!records || records.length === 0}>
-                Generate sponsor report (PDF)
-              </button>
-              <button className="btn" onClick={exportCsv} disabled={!records || records.length === 0}>
-                Export aggregate dataset (CSV)
-              </button>
-              <button className="btn" onClick={exportUsageCsv} disabled={!usageRecords || usageRecords.length === 0}>
-                Export usage events (CSV)
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    )}
-  </div>
-
-  {createDoctorOpen && (
-    <CreateDoctorModal
-      isOpen={createDoctorOpen}
-      onClose={() => setCreateDoctorOpen(false)}
-      onCreated={(createdEmail) => {
-        setActionFeedback(`Principal Investigator account created for ${createdEmail}.`);
-        setTimeout(() => setActionFeedback(null), 6000);
-      }}
-    />
-  )}
-</div>
+      {createDoctorOpen && (
+        <CreateDoctorModal
+          isOpen={createDoctorOpen}
+          onClose={() => setCreateDoctorOpen(false)}
+          onCreated={(createdEmail) => {
+            setActionFeedback(`Principal Investigator account created for ${createdEmail}.`);
+            setTimeout(() => setActionFeedback(null), 6000);
+          }}
+        />
+      )}
+    </div>
   );
 }

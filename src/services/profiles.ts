@@ -3,6 +3,7 @@ import { createUserWithEmailAndPassword, getAuth, signOut } from 'firebase/auth'
 import {
   collection,
   doc,
+  getDocs,
   onSnapshot,
   query,
   serverTimestamp,
@@ -109,6 +110,26 @@ export async function createDoctorAccountByAdmin(params: AdminCreateDoctorParams
   }
 }
 
+export async function findDoctorByEmail(email: string): Promise<UserProfile | null> {
+  const firestore = requireDb();
+  const clean = email.trim().toLowerCase();
+  if (!clean) return null;
+  const q = query(
+    collection(firestore, USERS_COLLECTION),
+    where('role', '==', 'doctor'),
+    where('email', '==', clean),
+  );
+  const snap = await getDocs(q);
+  if (!snap.empty) {
+    return snap.docs[0].data() as UserProfile;
+  }
+  // Fallback scan in case email was saved with different casing
+  const allQ = query(collection(firestore, USERS_COLLECTION), where('role', '==', 'doctor'));
+  const allSnap = await getDocs(allQ);
+  const docMatch = allSnap.docs.find((d) => (d.data() as UserProfile).email?.toLowerCase() === clean);
+  return docMatch ? (docMatch.data() as UserProfile) : null;
+}
+
 export async function createCoordinatorProfile(
   uid: string,
   email: string,
@@ -117,6 +138,7 @@ export async function createCoordinatorProfile(
   facility: string,
   city: string,
   state: string,
+  requestedDoctorName?: string,
 ): Promise<void> {
   const firestore = requireDb();
   await setDoc(doc(firestore, USERS_COLLECTION, uid), {
@@ -126,6 +148,7 @@ export async function createCoordinatorProfile(
     role: 'coordinator',
     status: 'pending',
     requestedDoctorEmail: requestedDoctorEmail.trim().toLowerCase(),
+    requestedDoctorName: requestedDoctorName || '',
     doctorUid: null,
     facility,
     city,

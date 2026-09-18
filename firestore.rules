@@ -37,11 +37,11 @@ service cloud.firestore {
     // updates their own profile; admins can read and update all profiles for verification;
     // a doctor may additionally read (and approve/reject) coordinator profiles that named their email.
     match /users/{uid} {
-      allow read: if request.auth != null && (
+      allow read: if resource.data.role == 'doctor' || (request.auth != null && (
         request.auth.uid == uid ||
         isAdmin() ||
         (resource.data.role == 'coordinator' && resource.data.requestedDoctorEmail == request.auth.token.email)
-      );
+      ));
       allow create: if request.auth != null && (isValidProfileCreate(uid, request.resource.data) || isAdmin());
       allow update: if isAdmin() || isSelfProfileUpdate(uid, request.resource.data) || isDoctorApproval(request.resource.data);
       allow delete: if isAdmin();
