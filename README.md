@@ -1,5 +1,4 @@
-# TrialWiz
-
+# TrialWizx
 A clinical trial finder for recruiting **cancer trials in India**, built on the public
 [ClinicalTrials.gov Data API (v2)](https://clinicaltrials.gov/data-api/api). Three apps in one
 codebase:
