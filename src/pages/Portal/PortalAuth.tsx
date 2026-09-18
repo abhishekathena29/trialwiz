@@ -139,47 +139,20 @@ export function PortalAuth() {
     <div className="tw-admin">
       <PortalHeader />
       <div className="login-wrap portal-auth-wrap">
-        {/* Top Briefing Banner */}
-        <div className="portal-brief-card">
-          <div className="portal-brief-tag">
-            <span>🩺 Principal Investigator & Clinical Research Portal</span>
+        {/* Minimal Provider Briefing Banner */}
+        <div className="portal-brief-compact">
+          <div className="portal-brief-head">
+            <span className="portal-brief-tag">🩺 Principal Investigator Portal</span>
+            <span className="portal-brief-sub">For PIs, Oncologists & Clinical Trial Teams</span>
           </div>
-          <h2>Welcome to the TrialWiz Provider Portal</h2>
-          <p className="portal-brief-lead">
-            This portal is built for <b>Principal Investigators (PIs / Oncologists)</b> and their hospital{' '}
-            <b>Clinical Trial Teams</b> to connect recruiting studies with referring doctors and matching patients.
-          </p>
-
-          <div className="portal-steps-grid">
-            <div className="portal-step-item">
-              <div className="step-num">1</div>
-              <div className="step-desc">
-                <b>Register with Hospital Name</b>
-                <span>Sign up with your medical affiliation and trial center name.</span>
-              </div>
-            </div>
-            <div className="portal-step-item">
-              <div className="step-num">2</div>
-              <div className="step-desc">
-                <b>Admin Verification</b>
-                <span>Admin verifies PI credentials to maintain research site integrity.</span>
-              </div>
-            </div>
-            <div className="portal-step-item">
-              <div className="step-num">3</div>
-              <div className="step-desc">
-                <b>Hospital-Filtered Trials</b>
-                <span>Access live clinical trials pre-filtered for your hospital center.</span>
-              </div>
-            </div>
-            <div className="portal-step-item">
-              <div className="step-num">4</div>
-              <div className="step-desc">
-                <b>Claim Trials & Direct Contacts</b>
-                <span>Claim your trials and publish direct site phone numbers for inquiries.</span>
-              </div>
-            </div>
-          </div>
+          <ul className="portal-brief-pointers">
+            <li>
+              <b>Admin Verification:</b> Doctor accounts are verified by TrialWiz admin before full trial access.
+            </li>
+            <li>
+              <b>Claim Trials & Contacts:</b> Claim active trials and add direct site phone numbers for patient referrals.
+            </li>
+          </ul>
         </div>
 
         <div className="login-card">
