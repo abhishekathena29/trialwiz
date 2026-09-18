@@ -42,7 +42,10 @@ export function PortalAuth() {
     email.trim() &&
     password.length >= 6 &&
     (mode === 'signin' ||
-      (name.trim() && !passwordsMismatch && (role === 'doctor' || (facility.trim() && city.trim() && doctorEmail.trim()))));
+      (name.trim() &&
+        !passwordsMismatch &&
+        facility.trim() &&
+        (role === 'doctor' || (city.trim() && doctorEmail.trim()))));
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -53,7 +56,14 @@ export function PortalAuth() {
       if (mode === 'signup') {
         const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
         if (role === 'doctor') {
-          await createDoctorProfile(cred.user.uid, email.trim(), name.trim());
+          await createDoctorProfile(
+            cred.user.uid,
+            email.trim(),
+            name.trim(),
+            facility.trim(),
+            city.trim(),
+            state.trim(),
+          );
         } else {
           await createCoordinatorProfile(
             cred.user.uid,
@@ -79,13 +89,56 @@ export function PortalAuth() {
   return (
     <div className="tw-admin">
       <PortalHeader />
-      <div className="login-wrap">
+      <div className="login-wrap portal-auth-wrap">
+        {/* Top Briefing Banner */}
+        <div className="portal-brief-card">
+          <div className="portal-brief-tag">
+            <span>🩺 Principal Investigator & Clinical Research Portal</span>
+          </div>
+          <h2>Welcome to the TrialWiz Provider Portal</h2>
+          <p className="portal-brief-lead">
+            This portal is built for <b>Principal Investigators (PIs / Oncologists)</b> and their hospital{' '}
+            <b>Clinical Trial Teams</b> to connect recruiting studies with referring doctors and matching patients.
+          </p>
+
+          <div className="portal-steps-grid">
+            <div className="portal-step-item">
+              <div className="step-num">1</div>
+              <div className="step-desc">
+                <b>Register with Hospital Name</b>
+                <span>Sign up with your medical affiliation and trial center name.</span>
+              </div>
+            </div>
+            <div className="portal-step-item">
+              <div className="step-num">2</div>
+              <div className="step-desc">
+                <b>Admin Verification</b>
+                <span>Admin verifies PI credentials to maintain research site integrity.</span>
+              </div>
+            </div>
+            <div className="portal-step-item">
+              <div className="step-num">3</div>
+              <div className="step-desc">
+                <b>Hospital-Filtered Trials</b>
+                <span>Access live clinical trials pre-filtered for your hospital center.</span>
+              </div>
+            </div>
+            <div className="portal-step-item">
+              <div className="step-num">4</div>
+              <div className="step-desc">
+                <b>Claim Trials & Direct Contacts</b>
+                <span>Claim your trials and publish direct site phone numbers for inquiries.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="login-card">
           <h1>{mode === 'signup' ? 'Create a provider account' : 'Sign in'}</h1>
           <p>
             {mode === 'signup'
-              ? 'For doctors and trial coordinators only. A coordinator account needs approval from the doctor named below before it can add trials.'
-              : 'Sign in with your doctor or trial-coordinator account.'}
+              ? 'For Principal Investigators and trial coordinators. PI accounts are verified by TrialWiz admin before claiming trials.'
+              : 'Sign in with your Principal Investigator or trial coordinator account.'}
           </p>
           {err && <div className="login-err">{err}</div>}
           <form onSubmit={submit}>
@@ -94,14 +147,43 @@ export function PortalAuth() {
                 <label>I am a</label>
                 <div className="roletoggle">
                   <button type="button" className={role === 'doctor' ? 'on' : ''} onClick={() => setRole('doctor')}>
-                    Doctor
+                    Principal Investigator (Doctor)
                   </button>
                   <button type="button" className={role === 'coordinator' ? 'on' : ''} onClick={() => setRole('coordinator')}>
                     Trial coordinator
                   </button>
                 </div>
                 <label htmlFor="pname">Full name</label>
-                <input id="pname" value={name} onChange={(e) => setName(e.target.value)} required />
+                <input
+                  id="pname"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder={role === 'doctor' ? 'Dr. Firstname Lastname' : 'Firstname Lastname'}
+                  required
+                />
+                <label htmlFor="pfacility">Hospital / Institution name</label>
+                <input
+                  id="pfacility"
+                  value={facility}
+                  onChange={(e) => setFacility(e.target.value)}
+                  placeholder="e.g. Tata Memorial Centre, Apollo Cancer Centre, AIIMS"
+                  required
+                />
+                <label htmlFor="pcity">City {role === 'doctor' && '(recommended)'}</label>
+                <input
+                  id="pcity"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  placeholder="e.g. Mumbai, Chennai, New Delhi"
+                  required={role === 'coordinator'}
+                />
+                <label htmlFor="pstate">State (optional)</label>
+                <input
+                  id="pstate"
+                  value={state}
+                  onChange={(e) => setStateField(e.target.value)}
+                  placeholder="e.g. Maharashtra, Tamil Nadu"
+                />
               </>
             )}
             <label htmlFor="pemail">Email</label>
@@ -136,12 +218,6 @@ export function PortalAuth() {
                 {passwordsMismatch && <div className="login-err">Passwords don't match yet.</div>}
                 {role === 'coordinator' && (
                   <>
-                    <label htmlFor="pfacility">Your hospital / trial centre</label>
-                    <input id="pfacility" value={facility} onChange={(e) => setFacility(e.target.value)} required />
-                    <label htmlFor="pcity">City</label>
-                    <input id="pcity" value={city} onChange={(e) => setCity(e.target.value)} required />
-                    <label htmlFor="pstate">State (optional)</label>
-                    <input id="pstate" value={state} onChange={(e) => setStateField(e.target.value)} />
                     <label htmlFor="pdocemail">Approving doctor's email</label>
                     <input
                       id="pdocemail"
@@ -169,7 +245,7 @@ export function PortalAuth() {
               }}
               style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'inherit', textDecoration: 'underline' }}
             >
-              {mode === 'signup' ? 'Already have an account? Sign in' : "New here? Create a doctor or coordinator account"}
+              {mode === 'signup' ? 'Already have an account? Sign in' : 'New here? Create a doctor or coordinator account'}
             </button>
           </p>
         </div>

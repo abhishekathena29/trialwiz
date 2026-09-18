@@ -34,6 +34,8 @@ function formatStatus(s: string): string {
     .join(' ');
 }
 
+import { useTrialClaims } from '../../hooks/useTrialClaims';
+
 function formatStudyType(t: string | undefined): string {
   if (!t) return 'Not specified';
   return t.charAt(0) + t.slice(1).toLowerCase();
@@ -46,9 +48,15 @@ function formatDate(d: string | undefined): string {
   return new Date(t).toLocaleDateString('en-IN', { year: 'numeric', month: 'short' });
 }
 
-function LocationCard({ site, label }: { site: TrialLocation; label: string }) {
-  const tel = telHref(site.contactPhone);
-  const contactHref = site.contactPhone ? `tel:${tel}` : site.contactEmail ? `mailto:${site.contactEmail}` : undefined;
+function LocationCard({ site, label, nctId }: { site: TrialLocation; label: string; nctId: string }) {
+  const { getClaim } = useTrialClaims();
+  const claim = getClaim(nctId, site.facility);
+  const phone = claim?.contactPhone || site.contactPhone;
+  const email = claim?.contactEmail || site.contactEmail;
+  const contactName = claim?.contactName || site.contactName;
+  const tel = telHref(phone);
+  const contactHref = phone ? `tel:${tel}` : email ? `mailto:${email}` : undefined;
+
   return (
     <div className="dcard loc">
       <div className="dlab accent">
@@ -59,21 +67,35 @@ function LocationCard({ site, label }: { site: TrialLocation; label: string }) {
         <PinIcon />
         <span>{[site.city, site.state].filter(Boolean).join(', ') || 'Location on file with the registry'}</span>
       </div>
-      {site.contactPhone && (
+
+      {claim && (
+        <div className="verified-pi-banner" style={{ margin: '10px 0 8px' }}>
+          <span className="shield-icon">🛡️</span>
+          <span>Verified Site Lead: <b>{contactName}</b></span>
+          {claim.department && <span className="dept-note"> · {claim.department}</span>}
+          {claim.notes && (
+            <div style={{ fontSize: 12, marginTop: 4, color: 'var(--ink)' }}>
+              <b>Screening note:</b> {claim.notes}
+            </div>
+          )}
+        </div>
+      )}
+
+      {phone && (
         <a className="address" href={`tel:${tel}`}>
           <PhoneIcon />
-          <span>{site.contactPhone}</span>
+          <span>{phone}</span>
         </a>
       )}
-      {site.contactEmail && (
-        <a className="address" href={`mailto:${site.contactEmail}`}>
+      {email && (
+        <a className="address" href={`mailto:${email}`}>
           <MailIcon />
-          <span>{site.contactEmail}</span>
+          <span>{email}</span>
         </a>
       )}
       {contactHref && (
         <a className="contactcta" href={contactHref}>
-          <MailIcon /> Contact investigator
+          <MailIcon /> Contact investigator / site team
         </a>
       )}
     </div>
@@ -152,14 +174,14 @@ export function TrialDetail({ trial, onBack, isFavorite, onToggleFavorite }: Pro
         </div>
       </div>
 
-      {primary && <LocationCard site={primary} label={trial.sites.length > 1 ? 'Nearest location' : 'Location'} />}
+      {primary && <LocationCard site={primary} label={trial.sites.length > 1 ? 'Nearest location' : 'Location'} nctId={trial.nctId} />}
       {otherSites.length > 0 && (
         <>
           <div className="sechead">
             <h2>Also recruiting at {otherSites.length} more location{otherSites.length === 1 ? '' : 's'}</h2>
           </div>
           {otherSites.map((s, i) => (
-            <LocationCard key={s.key} site={s} label={`Location ${i + 2}`} />
+            <LocationCard key={s.key} site={s} label={`Location ${i + 2}`} nctId={trial.nctId} />
           ))}
         </>
       )}

@@ -12,8 +12,12 @@ import {
 } from '../../analytics/aggregate';
 import { auth } from '../../firebase';
 import { useTrialCatalogue } from '../../hooks/useTrialCatalogue';
+import { approveDoctor, rejectDoctor, subscribeDoctors } from '../../services/profiles';
+import { subscribeAllClaims } from '../../services/trialClaims';
+import type { TrialClaim, UserProfile } from '../../types';
 import { countUniqueTrials, tallyByCancerType, tallyByCentre } from '../../utils/trialStats';
 import { AdminHeader } from './AdminHeader';
+import { CreateDoctorModal } from './CreateDoctorModal';
 
 const PERIODS: Array<[number, string]> = [
   [30, 'Last 30 days'],
@@ -123,6 +127,63 @@ export function AdminDashboard({ user }: { user: User }) {
   const [usageRecords, setUsageRecords] = useState<UsageRecord[] | null>(null);
   const [error, setError] = useState('');
 
+  // Admin Tab: 'doctors' | 'demand' | 'catalogue'
+  const [adminTab, setAdminTab] = useState<'doctors' | 'demand' | 'catalogue'>('doctors');
+  const [doctors, setDoctors] = useState<UserProfile[]>([]);
+  const [claims, setClaims] = useState<TrialClaim[]>([]);
+  const [createDoctorOpen, setCreateDoctorOpen] = useState(false);
+  const [busyDoctorUid, setBusyDoctorUid] = useState<string | null>(null);
+  const [actionFeedback, setActionFeedback] = useState<string | null>(null);
+
+  useEffect(() => {
+    return subscribeDoctors(setDoctors);
+  }, []);
+
+  useEffect(() => {
+    return subscribeAllClaims(setClaims);
+  }, []);
+
+  const pendingDoctors = useMemo(() => doctors.filter((d) => d.status === 'pending'), [doctors]);
+  const approvedDoctors = useMemo(() => doctors.filter((d) => d.status === 'approved'), [doctors]);
+  const rejectedDoctors = useMemo(() => doctors.filter((d) => d.status === 'rejected'), [doctors]);
+
+  const distinctHospitals = useMemo(() => {
+    const set = new Set<string>();
+    for (const d of approvedDoctors) {
+      if (d.facility) set.add(d.facility.trim());
+    }
+    return set.size;
+  }, [approvedDoctors]);
+
+  async function handleApproveDoctor(uid: string, name: string) {
+    setBusyDoctorUid(uid);
+    try {
+      await approveDoctor(uid);
+      setActionFeedback(`Approved Dr. ${name}. They can now access their dashboard and claim trials.`);
+      setTimeout(() => setActionFeedback(null), 6000);
+    } catch (e) {
+      console.error(e);
+      setError(e instanceof Error ? e.message : 'Failed to approve doctor.');
+    } finally {
+      setBusyDoctorUid(null);
+    }
+  }
+
+  async function handleRejectDoctor(uid: string, name: string) {
+    if (!window.confirm(`Are you sure you want to reject Dr. ${name}?`)) return;
+    setBusyDoctorUid(uid);
+    try {
+      await rejectDoctor(uid);
+      setActionFeedback(`Rejected Dr. ${name}.`);
+      setTimeout(() => setActionFeedback(null), 6000);
+    } catch (e) {
+      console.error(e);
+      setError(e instanceof Error ? e.message : 'Failed to reject doctor.');
+    } finally {
+      setBusyDoctorUid(null);
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -228,16 +289,238 @@ export function AdminDashboard({ user }: { user: User }) {
           </div>
         )}
 
-        <div className="sechead2">
-          <h2>Trial catalogue</h2>
-          <span className="sup">
-            Live from ClinicalTrials.gov + doctor/coordinator submissions — updates automatically, no refresh needed
-          </span>
+        {/* Navigation Tabs */}
+        <div className="portal-tabs" style={{ marginBottom: 20 }}>
+          <button
+            className={`portal-tab ${adminTab === 'doctors' ? 'active' : ''}`}
+            onClick={() => setAdminTab('doctors')}
+          >
+            🩺 Principal Investigator Accounts ({approvedDoctors.length})
+            {pendingDoctors.length > 0 && (
+              <span className="tab-pending-badge">{pendingDoctors.length}</span>
+            )}
+          </button>
+          <button
+            className={`portal-tab ${adminTab === 'demand' ? 'active' : ''}`}
+            onClick={() => setAdminTab('demand')}
+          >
+            📊 Demand Intelligence & Usage
+          </button>
+          <button
+            className={`portal-tab ${adminTab === 'catalogue' ? 'active' : ''}`}
+            onClick={() => setAdminTab('catalogue')}
+          >
+            🗂 Trial Catalogue ({catalogue.totalTrials})
+          </button>
         </div>
-        {catalogueLoading && catalogueRows.length === 0 ? (
-          <div className="note">Loading trial catalogue…</div>
-        ) : (
-          <>
+
+        {/* TAB 1: DOCTORS & PI APPROVALS */}
+        {adminTab === 'doctors' && (
+          <div>
+            <div className="admin-section-head">
+              <div>
+                <h2 style={{ fontSize: 18, margin: 0, fontWeight: 780 }}>
+                  Principal Investigator & Doctor Accounts
+                </h2>
+                <p className="sup" style={{ margin: '4px 0 0' }}>
+                  Manage hospital affiliations, approve self-registered doctors, and directly create new investigator accounts
+                </p>
+              </div>
+              <button
+                className="btn primary"
+                onClick={() => setCreateDoctorOpen(true)}
+                style={{ marginLeft: 'auto' }}
+              >
+                ➕ Create Principal Investigator
+              </button>
+            </div>
+
+            {actionFeedback && (
+              <div className="note" style={{ background: '#e3f7e9', color: '#16794b', borderColor: '#a3e6b7' }}>
+                ✓ {actionFeedback}
+              </div>
+            )}
+
+            {/* KPIs */}
+            <div className="kpis" style={{ marginTop: 16 }}>
+              <div className="kpi">
+                <div className={`n ${pendingDoctors.length > 0 ? 'warn' : ''}`}>{pendingDoctors.length}</div>
+                <div className="l">Pending Approvals</div>
+                <div className="d">{pendingDoctors.length > 0 ? 'Action required' : 'All clear'}</div>
+              </div>
+              <div className="kpi">
+                <div className="n">{approvedDoctors.length}</div>
+                <div className="l">Verified Doctors (PIs)</div>
+              </div>
+              <div className="kpi">
+                <div className="n">{distinctHospitals}</div>
+                <div className="l">Affiliated Hospitals</div>
+              </div>
+              <div className="kpi">
+                <div className="n">{claims.length}</div>
+                <div className="l">Claimed Trials</div>
+              </div>
+            </div>
+
+            {/* PENDING APPROVALS */}
+            <div className="sechead2">
+              <h2>Pending Doctor Approvals ({pendingDoctors.length})</h2>
+              <span className="sup">Doctors who registered via provider portal and await site verification</span>
+            </div>
+            <div className="card full">
+              {pendingDoctors.length === 0 ? (
+                <div className="sup">No pending doctor approvals right now. All registrations are processed!</div>
+              ) : (
+                <div className="tablewrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Doctor Name</th>
+                        <th>Hospital / Institution</th>
+                        <th>Location</th>
+                        <th>Email</th>
+                        <th style={{ textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendingDoctors.map((d) => (
+                        <tr key={d.uid}>
+                          <td><b>{d.name}</b></td>
+                          <td>{d.facility || '—'}</td>
+                          <td>{[d.city, d.state].filter(Boolean).join(', ') || '—'}</td>
+                          <td><a href={`mailto:${d.email}`}>{d.email}</a></td>
+                          <td style={{ textAlign: 'right' }}>
+                            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                              <button
+                                className="btn primary"
+                                style={{ padding: '6px 12px', fontSize: 12 }}
+                                disabled={busyDoctorUid === d.uid}
+                                onClick={() => handleApproveDoctor(d.uid, d.name)}
+                              >
+                                {busyDoctorUid === d.uid ? '…' : 'Approve'}
+                              </button>
+                              <button
+                                className="btn"
+                                style={{ padding: '6px 12px', fontSize: 12, color: 'var(--red)' }}
+                                disabled={busyDoctorUid === d.uid}
+                                onClick={() => handleRejectDoctor(d.uid, d.name)}
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* VERIFIED PRINCIPAL INVESTIGATORS */}
+            <div className="sechead2">
+              <h2>Verified Principal Investigators ({approvedDoctors.length})</h2>
+              <span className="sup">Authorized to claim trials, add site contacts, and approve trial coordinators</span>
+            </div>
+            <div className="card full">
+              {approvedDoctors.length === 0 ? (
+                <div className="sup">No approved doctor accounts yet. Use the "+ Create Principal Investigator" button above to add one.</div>
+              ) : (
+                <div className="tablewrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Doctor Name</th>
+                        <th>Hospital / Institution</th>
+                        <th>Location</th>
+                        <th>Email</th>
+                        <th>Status</th>
+                        <th style={{ textAlign: 'right' }}>Management</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {approvedDoctors.map((d) => (
+                        <tr key={d.uid}>
+                          <td><b>{d.name}</b></td>
+                          <td>{d.facility || '—'}</td>
+                          <td>{[d.city, d.state].filter(Boolean).join(', ') || '—'}</td>
+                          <td>{d.email}</td>
+                          <td><span className="pill approved">Approved</span></td>
+                          <td style={{ textAlign: 'right' }}>
+                            <button
+                              className="btn"
+                              style={{ padding: '4px 10px', fontSize: 11.5 }}
+                              disabled={busyDoctorUid === d.uid}
+                              onClick={() => handleRejectDoctor(d.uid, d.name)}
+                            >
+                              Revoke
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* REJECTED DOCTORS */}
+            {rejectedDoctors.length > 0 && (
+              <>
+                <div className="sechead2">
+                  <h2>Rejected Doctor Registrations ({rejectedDoctors.length})</h2>
+                </div>
+                <div className="card full">
+                  <div className="tablewrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Doctor Name</th>
+                          <th>Hospital / Institution</th>
+                          <th>Email</th>
+                          <th style={{ textAlign: 'right' }}>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rejectedDoctors.map((d) => (
+                          <tr key={d.uid}>
+                            <td><b>{d.name}</b></td>
+                            <td>{d.facility || '—'}</td>
+                            <td>{d.email}</td>
+                            <td style={{ textAlign: 'right' }}>
+                              <button
+                                className="btn"
+                                style={{ padding: '4px 10px', fontSize: 11.5 }}
+                                disabled={busyDoctorUid === d.uid}
+                                onClick={() => handleApproveDoctor(d.uid, d.name)}
+                              >
+                                Approve instead
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* TAB 2: TRIAL CATALOGUE */}
+        {adminTab === 'catalogue' && (
+          <div>
+            <div className="sechead2" style={{ marginTop: 0 }}>
+              <h2>Trial catalogue</h2>
+              <span className="sup">
+                Live from ClinicalTrials.gov + doctor/coordinator submissions — updates automatically, no refresh needed
+              </span>
+            </div>
+            {catalogueLoading && catalogueRows.length === 0 ? (
+              <div className="note">Loading trial catalogue…</div>
+            ) : (
+              <>
             <div className="kpis">
               <div className="kpi">
                 <div className="n">{catalogue.totalTrials}</div>
@@ -268,6 +551,16 @@ export function AdminDashboard({ user }: { user: User }) {
             </div>
           </>
         )}
+      </div>
+    )}
+
+    {/* TAB 3: DEMAND & USAGE INTELLIGENCE */}
+    {adminTab === 'demand' && (
+      <div>
+        <div className="sechead2" style={{ marginTop: 0 }}>
+          <h2>Demand Intelligence & Usage Analytics</h2>
+          <span className="sup">Aggregate signals from patient & doctor searches on TrialWiz</span>
+        </div>
 
         {!agg ? (
           <div className="note">Loading demand data…</div>
@@ -423,17 +716,23 @@ export function AdminDashboard({ user }: { user: User }) {
               <button className="btn" onClick={exportUsageCsv} disabled={!usageRecords || usageRecords.length === 0}>
                 Export usage events (CSV)
               </button>
-              <button
-                className="btn"
-                disabled
-                title="Add a document to the Firestore 'admins' collection, keyed by the user's Auth UID"
-              >
-                Manage access
-              </button>
             </div>
           </>
         )}
       </div>
-    </div>
+    )}
+  </div>
+
+  {createDoctorOpen && (
+    <CreateDoctorModal
+      isOpen={createDoctorOpen}
+      onClose={() => setCreateDoctorOpen(false)}
+      onCreated={(createdEmail) => {
+        setActionFeedback(`Principal Investigator account created for ${createdEmail}.`);
+        setTimeout(() => setActionFeedback(null), 6000);
+      }}
+    />
+  )}
+</div>
   );
 }

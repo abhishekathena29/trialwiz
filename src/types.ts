@@ -57,24 +57,52 @@ export interface DemandLogEvent {
 }
 
 export type UserRole = 'doctor' | 'coordinator';
-export type CoordinatorStatus = 'pending' | 'approved' | 'rejected';
+export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
+export type CoordinatorStatus = ApprovalStatus;
 
 /** Profile doc at `users/{uid}` — coexists with that user's `favorites` subcollection.
- * Doctors approve coordinators; only an approved coordinator may submit trials. */
+ * Admins approve doctors; doctors approve coordinators. */
 export interface UserProfile {
   uid: string;
   email: string;
   name: string;
   role: UserRole;
   createdAt: unknown;
+  /** Hospital / Institution name — used for doctors (Principal Investigators) and coordinators */
+  facility?: string;
+  city?: string;
+  state?: string;
+  /** Approval status: 'pending' | 'approved' | 'rejected'.
+   * Doctors are approved by Admin; Coordinators are approved by their doctor. */
+  status?: ApprovalStatus;
   /** Coordinator-only fields. */
   requestedDoctorEmail?: string;
   requestedDoctorName?: string;
   doctorUid?: string | null;
-  status?: CoordinatorStatus;
-  facility?: string;
+}
+
+/** Record of a Principal Investigator or Coordinator claiming a trial at their site.
+ * Stored in `trialClaims/{claimId}`. */
+export interface TrialClaim {
+  id: string;
+  nctId: string;
+  facility: string;
   city?: string;
   state?: string;
+  briefTitle?: string;
+  cancerType?: string;
+  claimedByUid: string;
+  claimedByName: string;
+  claimedByRole: UserRole;
+  claimedByEmail: string;
+  contactPhone: string;
+  contactEmail: string;
+  contactName: string;
+  department?: string;
+  notes?: string;
+  confirmedPrincipalInvestigator: boolean;
+  claimedAt: unknown;
+  updatedAt: unknown;
 }
 
 /** A doctor/coordinator-submitted trial — stored at `submittedTrials/{id}` in the exact

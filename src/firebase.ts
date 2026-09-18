@@ -28,4 +28,5 @@ if (firebaseConfigured) {
   );
 }
 
+export const firebaseConfig = config;
 export { app, auth, db };

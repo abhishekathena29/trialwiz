@@ -2,10 +2,9 @@ import { signOut } from 'firebase/auth';
 import { auth, firebaseConfigured } from '../../firebase';
 import { useAuthUser } from '../../hooks/useAuthUser';
 import { useUserProfile } from '../../hooks/useUserProfile';
-import { AddTrialForm } from './AddTrialForm';
 import { CoordinatorPending } from './CoordinatorPending';
+import { DoctorPending } from './DoctorPending';
 import { DoctorDashboard } from './DoctorDashboard';
-import { MySubmittedTrials } from './MySubmittedTrials';
 import './Portal.css';
 import { PortalAuth } from './PortalAuth';
 import { PortalHeader } from './PortalHeader';
@@ -71,27 +70,15 @@ export function PortalApp() {
   if (profileLoading) return <Loading />;
   if (!profile) return <NotRegistered email={user.email} />;
 
-  if (profile.role === 'doctor') return <DoctorDashboard user={user} profile={profile} />;
+  if (profile.role === 'doctor') {
+    if (profile.status !== 'approved') {
+      return <DoctorPending user={user} profile={profile} />;
+    }
+    return <DoctorDashboard user={user} profile={profile} />;
+  }
 
   // coordinator
   if (profile.status !== 'approved') return <CoordinatorPending user={user} profile={profile} />;
 
-  return (
-    <div className="tw-admin">
-      <PortalHeader
-        right={
-          <span className="lockpill" onClick={() => auth && signOut(auth)}>
-            {user.email} · sign out
-          </span>
-        }
-      />
-      <div className="wrap">
-        <div className="note">
-          Approved coordinator for <b>{profile.facility}, {profile.city}</b>, under Dr. {profile.requestedDoctorEmail}.
-        </div>
-        <AddTrialForm user={user} profile={profile} />
-        <MySubmittedTrials uid={user.uid} />
-      </div>
-    </div>
-  );
+  return <DoctorDashboard user={user} profile={profile} />;
 }
