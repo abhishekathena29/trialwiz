@@ -29,6 +29,12 @@ export const SYS: Record<string, string> = {
   Leukaemia: 'Haematology',
   Lymphoma: 'Haematology',
   'Multiple myeloma': 'Haematology',
+  'Pediatric cancer': 'Pediatric',
+  Neuroblastoma: 'Pediatric',
+  Retinoblastoma: 'Pediatric',
+  'Wilms tumour': 'Pediatric',
+  Medulloblastoma: 'Pediatric',
+  'Ewing sarcoma': 'Pediatric',
   'Other cancer': 'Other',
 };
 
@@ -48,11 +54,25 @@ export const SOLID_SYSTEMS = [
   'Other',
 ];
 
-export const groupOf = (cancerType: string): 'blood' | 'solid' =>
-  SYS[cancerType] === 'Haematology' ? 'blood' : 'solid';
+export type CancerGroup = 'solid' | 'blood' | 'pediatric';
+
+export const groupOf = (cancerType: string, customCategory?: string): CancerGroup => {
+  if (customCategory === 'pediatric' || customCategory === 'blood' || customCategory === 'solid') {
+    return customCategory;
+  }
+  if (SYS[cancerType] === 'Pediatric') return 'pediatric';
+  if (SYS[cancerType] === 'Haematology') return 'blood';
+  return 'solid';
+};
 
 /** Ordered keyword rules; first match wins. Order matters (e.g. head&neck before oral). */
 const RULES: Array<[string, RegExp]> = [
+  ['Neuroblastoma', /neuroblastoma/i],
+  ['Retinoblastoma', /retinoblastoma/i],
+  ['Wilms tumour', /wilms|nephroblastoma/i],
+  ['Medulloblastoma', /medulloblastoma/i],
+  ['Ewing sarcoma', /ewing/i],
+  ['Pediatric cancer', /\b(pediatric|paediatric|childhood|infantile)\b.*(cancer|tumor|tumour|oncolog|malignan|blastom)/i],
   ['Lung cancer', /\b(lung|nsclc|sclc|pulmonary carcinom)/i],
   ['Mesothelioma', /mesotheli/i],
   ['Oesophageal cancer', /(o|e)sophag/i],

@@ -4,9 +4,9 @@ import { countUniqueTrials, tallyByCancerType } from '../../utils/trialStats';
 
 interface Props {
   rows: TrialSite[];
-  group: 'solid' | 'blood';
+  group: 'solid' | 'blood' | 'pediatric';
   system: string;
-  onGroupChange: (g: 'solid' | 'blood') => void;
+  onGroupChange: (g: 'solid' | 'blood' | 'pediatric') => void;
   onSystemChange: (s: string) => void;
   onOpenCancer: (cancerType: string) => void;
 }
@@ -34,8 +34,9 @@ function Tiles({ list, onOpen }: { list: [string, number][]; onOpen: (c: string)
 
 export function BrowseByCancer({ rows, group, system, onGroupChange, onSystemChange, onOpenCancer }: Props) {
   const t = tallyByCancerType(rows);
-  const solidN = countUniqueTrials(rows.filter((r) => groupOf(r.cancerType) === 'solid'));
-  const bloodN = countUniqueTrials(rows.filter((r) => groupOf(r.cancerType) === 'blood'));
+  const solidN = countUniqueTrials(rows.filter((r) => groupOf(r.cancerType, r.cancerCategory) === 'solid'));
+  const bloodN = countUniqueTrials(rows.filter((r) => groupOf(r.cancerType, r.cancerCategory) === 'blood'));
+  const pediatricN = countUniqueTrials(rows.filter((r) => groupOf(r.cancerType, r.cancerCategory) === 'pediatric'));
 
   return (
     <div>
@@ -69,6 +70,9 @@ export function BrowseByCancer({ rows, group, system, onGroupChange, onSystemCha
         <button className={`gbtn${group === 'blood' ? ' on' : ''}`} onClick={() => onGroupChange('blood')}>
           Blood / Haematology <span className="gb">{bloodN}</span>
         </button>
+        <button className={`gbtn${group === 'pediatric' ? ' on' : ''}`} onClick={() => onGroupChange('pediatric')}>
+          Pediatric <span className="gb">{pediatricN}</span>
+        </button>
         {group === 'solid' && (
           <span className="sysdrop">
             <select className="sys" value={system} onChange={(e) => onSystemChange(e.target.value)}>
@@ -83,7 +87,20 @@ export function BrowseByCancer({ rows, group, system, onGroupChange, onSystemCha
         )}
       </div>
 
-      {group === 'blood' ? (
+      {group === 'pediatric' ? (
+        <>
+          <div className="sechead">
+            <h2>Pediatric cancers</h2>
+            <span className="cnt">{pediatricN} trials</span>
+          </div>
+          <Tiles
+            list={CANCERS.filter((c) => SYS[c] === 'Pediatric')
+              .map((c) => [c, t[c] || 0] as [string, number])
+              .sort((a, b) => b[1] - a[1])}
+            onOpen={onOpenCancer}
+          />
+        </>
+      ) : group === 'blood' ? (
         <>
           <div className="sechead">
             <h2>Blood / Haematology</h2>

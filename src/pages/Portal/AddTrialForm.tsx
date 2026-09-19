@@ -1,6 +1,6 @@
 import type { User } from 'firebase/auth';
 import { useState } from 'react';
-import { CANCERS } from '../../data/cancerTaxonomy';
+import { CANCERS, groupOf } from '../../data/cancerTaxonomy';
 import { CITIES, matchCity } from '../../data/cities';
 import { generateSubmittedTrialId, submitTrial } from '../../services/trialSubmissions';
 import type { LineOfTherapy, UserProfile } from '../../types';
@@ -31,7 +31,8 @@ const LINE_OPTIONS: Array<{ value: LineOfTherapy; label: string }> = [
 
 export function AddTrialForm({ user, profile, onSubmitted }: { user: User; profile: UserProfile; onSubmitted?: () => void }) {
   const [briefTitle, setBriefTitle] = useState('');
-  const [cancerType, setCancerType] = useState(CANCERS[0]);
+  const [cancerCategory, setCancerCategory] = useState<'solid' | 'blood' | 'pediatric'>('solid');
+  const [cancerType, setCancerType] = useState('Lung cancer');
   const [conditions, setConditions] = useState('');
   const [overallStatus, setOverallStatus] = useState('RECRUITING');
   const [phases, setPhases] = useState<string[]>([]);
@@ -51,6 +52,19 @@ export function AddTrialForm({ user, profile, onSubmitted }: { user: User; profi
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [done, setDone] = useState(false);
+
+  function handleCategoryChange(cat: 'solid' | 'blood' | 'pediatric') {
+    setCancerCategory(cat);
+    if (cat === 'solid') {
+      if (groupOf(cancerType) !== 'solid') setCancerType('Lung cancer');
+    } else if (cat === 'blood') {
+      if (groupOf(cancerType) !== 'blood') setCancerType('Leukaemia');
+    } else if (cat === 'pediatric') {
+      if (groupOf(cancerType) !== 'pediatric') setCancerType('Pediatric cancer');
+    }
+  }
+
+  const filteredCancers = CANCERS.filter((c) => groupOf(c) === cancerCategory || c === 'Other cancer');
 
   function togglePhase(p: string) {
     setPhases((cur) => (cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p]));
@@ -77,6 +91,7 @@ export function AddTrialForm({ user, profile, onSubmitted }: { user: User; profi
           .map((c) => c.trim())
           .filter(Boolean),
         cancerType,
+        cancerCategory,
         overallStatus,
         phases,
         facility: facility.trim(),
@@ -102,6 +117,8 @@ export function AddTrialForm({ user, profile, onSubmitted }: { user: User; profi
       });
       setDone(true);
       setBriefTitle('');
+      setCancerCategory('solid');
+      setCancerType('Lung cancer');
       setConditions('');
       setEligibilityCriteria('');
       setBriefSummary('');
@@ -130,10 +147,36 @@ export function AddTrialForm({ user, profile, onSubmitted }: { user: User; profi
             <label htmlFor="title">Trial title</label>
             <input id="title" value={briefTitle} onChange={(e) => setBriefTitle(e.target.value)} required />
           </div>
+          <div className="span2">
+            <label>Cancer category</label>
+            <div className="roletoggle">
+              <button
+                type="button"
+                className={cancerCategory === 'solid' ? 'on' : ''}
+                onClick={() => handleCategoryChange('solid')}
+              >
+                Solid-organ
+              </button>
+              <button
+                type="button"
+                className={cancerCategory === 'blood' ? 'on' : ''}
+                onClick={() => handleCategoryChange('blood')}
+              >
+                Blood / Haematology
+              </button>
+              <button
+                type="button"
+                className={cancerCategory === 'pediatric' ? 'on' : ''}
+                onClick={() => handleCategoryChange('pediatric')}
+              >
+                Pediatric
+              </button>
+            </div>
+          </div>
           <div>
             <label htmlFor="cancerType">Cancer type</label>
             <select id="cancerType" value={cancerType} onChange={(e) => setCancerType(e.target.value)}>
-              {CANCERS.map((c) => (
+              {filteredCancers.map((c) => (
                 <option key={c} value={c}>
                   {c}
                 </option>

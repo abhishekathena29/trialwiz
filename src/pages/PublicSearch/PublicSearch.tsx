@@ -42,7 +42,7 @@ export function PublicSearch() {
   const [regionState, setRegionState] = useState<string | null>(null);
 
   const [seg, setSeg] = useState<Seg>('cancer');
-  const [group, setGroup] = useState<'solid' | 'blood'>('solid');
+  const [group, setGroup] = useState<'solid' | 'blood' | 'pediatric'>('solid');
   const [system, setSystem] = useState('All');
   const [activeList, setActiveList] = useState<ActiveList>(null);
   const [searchResults, setSearchResults] = useState<TrialSite[] | null>(null);

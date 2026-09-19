@@ -8,6 +8,8 @@ export interface TrialSite {
   conditions: string[];
   /** Layman cancer-type bucket, e.g. "Lung cancer" */
   cancerType: string;
+  /** Category grouping: solid organ, haematology, or pediatric oncology */
+  cancerCategory?: 'solid' | 'blood' | 'pediatric';
   overallStatus: string;
   locationStatus?: string;
   phases: string[];
@@ -33,6 +35,8 @@ export interface TrialSite {
   /** Populated client-side once a location/radius scope is active. */
   distanceKm?: number | null;
 }
+
+export type CancerCategory = 'solid' | 'blood' | 'pediatric';
 
 export type LineOfTherapy =
   | 'neoadjuvant'
