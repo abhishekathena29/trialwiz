@@ -4,8 +4,9 @@ import { CANCERS } from '../../data/cancerTaxonomy';
 import { auth } from '../../firebase';
 import { useTrialCatalogue } from '../../hooks/useTrialCatalogue';
 import { approveCoordinator, rejectCoordinator, subscribeCoordinatorsForDoctor } from '../../services/profiles';
-import { makeClaimId, subscribeAllClaims } from '../../services/trialClaims';
-import type { TrialClaim, TrialSite, UserProfile } from '../../types';
+import { claimMatchesSite, subscribeAllClaims } from '../../services/trialClaims';
+import type { TrialClaim, UserProfile } from '../../types';
+import { groupByNctId, type GroupedTrial, type TrialLocation } from '../../utils/groupTrials';
 import { AddTrialForm } from './AddTrialForm';
 import { ClaimTrialModal } from './ClaimTrialModal';
 import { MySubmittedTrials } from './MySubmittedTrials';
@@ -43,6 +44,53 @@ function RequestRow({
   );
 }
 
+/** Location + registered hospital + published contact details for one claim. */
+function ClaimDetails({ claim, isMine }: { claim: TrialClaim; isMine: boolean }) {
+  return (
+    <div className="claim-status-box verified">
+      <div className="claim-status-header">
+        <span className="verified-icon">🛡️</span>
+        <b>
+          {isMine
+            ? 'Claimed by You (Principal Investigator / Study Team)'
+            : `Claimed by ${claim.claimedByName} (${claim.claimedByRole})`}
+        </b>
+      </div>
+      <div className="claim-contact-details">
+        <span>
+          📍 Location: <b>{[claim.facility, claim.city, claim.state].filter(Boolean).join(', ')}</b>
+        </span>
+        {claim.hospitalName && (
+          <span>
+            🏥 Hospital: <b>{claim.hospitalName}</b>
+          </span>
+        )}
+      </div>
+      <div className="claim-contact-details">
+        {claim.contactName && <span>👤 {claim.contactName}</span>}
+        {claim.contactPhone && (
+          <span>
+            📞 Direct Phone: <a href={`tel:${claim.contactPhone}`}>{claim.contactPhone}</a>
+          </span>
+        )}
+        {claim.contactEmail && (
+          <span>
+            ✉️ Email: <a href={`mailto:${claim.contactEmail}`}>{claim.contactEmail}</a>
+          </span>
+        )}
+        {claim.department && <span>🏢 {claim.department}</span>}
+      </div>
+      {claim.notes && (
+        <div className="claim-notes-preview">
+          <b>Screening Notes:</b> {claim.notes}
+        </div>
+      )}
+    </div>
+  );
+}
+
+type ClaimTarget = { trial: GroupedTrial; claim?: TrialClaim; defaultSiteKey?: string };
+
 type TabKey = 'hospital-trials' | 'claimed-trials' | 'coordinators' | 'add-trial';
 
 export function DoctorDashboard({ user, profile }: { user: User; profile: UserProfile }) {
@@ -62,7 +110,7 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
   const [searchQuery, setSearchQuery] = useState('');
 
   // Modal for claiming
-  const [claimingTrial, setClaimingTrial] = useState<TrialSite | null>(null);
+  const [claimTarget, setClaimTarget] = useState<ClaimTarget | null>(null);
 
   // Subscriptions
   useEffect(() => {
@@ -79,17 +127,8 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
   const approvedCoordinators = coordinators.filter((c) => c.status === 'approved');
   const rejectedCoordinators = coordinators.filter((c) => c.status === 'rejected');
 
-  // Claims map: keyed by `${nctId}__${facilityClean}` or `${nctId}__${facility}`
-  const claimsMap = useMemo(() => {
-    const map = new Map<string, TrialClaim>();
-    for (const c of claims) {
-      map.set(c.id, c);
-      // Also map with clean id
-      map.set(makeClaimId(c.nctId, c.facility), c);
-      map.set(`${c.nctId}__${c.facility.toLowerCase().trim()}`, c);
-    }
-    return map;
-  }, [claims]);
+  // Every study with all of its sites — the claim modal lets the PI pick any of them.
+  const groupsById = useMemo(() => new Map(groupByNctId(allTrials).map((g) => [g.nctId, g])), [allTrials]);
 
   // Saved phone numbers across existing claims and profile
   const savedPhones = useMemo(() => {
@@ -102,7 +141,7 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
     return Array.from(phones);
   }, [claims, user.uid]);
 
-  // Filter trials for the doctor's hospital
+  // Site rows at the doctor's hospital
   const hospitalFilteredTrials = useMemo(() => {
     const hQuery = hospitalQuery.trim().toLowerCase();
     return allTrials.filter((t) => {
@@ -120,26 +159,68 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
     });
   }, [allTrials, hospitalQuery, profile.city]);
 
+  // One card per NCT ID, same as the public Trial Finder — sites are only the matching ones.
+  const hospitalTrials = useMemo(() => groupByNctId(hospitalFilteredTrials), [hospitalFilteredTrials]);
+
   // Search & Cancer filtered trials within hospital trials
   const visibleTrials = useMemo(() => {
-    return hospitalFilteredTrials.filter((t) => {
+    return hospitalTrials.filter((t) => {
       if (cancerFilter !== 'all' && t.cancerType !== cancerFilter) return false;
       if (searchQuery.trim()) {
         const sq = searchQuery.trim().toLowerCase();
-        const hay = `${t.nctId} ${t.briefTitle} ${t.cancerType} ${t.phases.join(' ')} ${t.facility}`.toLowerCase();
+        const hay = `${t.nctId} ${t.briefTitle} ${t.cancerType} ${t.phases.join(' ')} ${t.sites.map((x) => x.facility).join(' ')}`.toLowerCase();
         if (!hay.includes(sq)) return false;
       }
       return true;
     });
-  }, [hospitalFilteredTrials, cancerFilter, searchQuery]);
+  }, [hospitalTrials, cancerFilter, searchQuery]);
 
-  // Claims made by this user or for this hospital
-  const myClaimedTrials = useMemo(() => {
-    return allTrials.filter((t) => {
-      const claim = claimsMap.get(makeClaimId(t.nctId, t.facility)) || claimsMap.get(`${t.nctId}__${t.facility.toLowerCase().trim()}`);
-      return claim && (claim.claimedByUid === user.uid || claim.facility.toLowerCase().includes(hospitalQuery.toLowerCase()));
-    });
-  }, [allTrials, claimsMap, user.uid, hospitalQuery]);
+  // Claims made by this user or by others registered with the same hospital, grouped per NCT ID
+  const myClaimsByNct = useMemo(() => {
+    const myHospital = (profile.facility ?? '').trim().toLowerCase();
+    const map = new Map<string, TrialClaim[]>();
+    for (const c of claims) {
+      const sameHospital = myHospital && (c.hospitalName ?? '').trim().toLowerCase() === myHospital;
+      if (c.claimedByUid !== user.uid && !sameHospital) continue;
+      map.set(c.nctId, [...(map.get(c.nctId) ?? []), c]);
+    }
+    return map;
+  }, [claims, user.uid, profile.facility]);
+
+  function getSiteClaim(nctId: string, site: TrialLocation): TrialClaim | undefined {
+    return claims.find((c) => claimMatchesSite(c, nctId, site));
+  }
+
+  /** Full study for the modal; falls back to the claim's stored location if the study left the feed. */
+  function studyFor(nctId: string, fallback?: TrialClaim): GroupedTrial | undefined {
+    const g = groupsById.get(nctId);
+    if (g || !fallback) return g;
+    return {
+      key: nctId,
+      nctId,
+      briefTitle: fallback.briefTitle ?? nctId,
+      conditions: [],
+      cancerType: fallback.cancerType ?? '',
+      overallStatus: '',
+      phases: [],
+      metastatic: 'unspecified',
+      lineOfTherapy: 'unspecified',
+      sites: [],
+    };
+  }
+
+  function openNewClaim(trial: GroupedTrial) {
+    const full = studyFor(trial.nctId);
+    if (!full) return;
+    // Preselect the first unclaimed site at the PI's hospital.
+    const preferred = trial.sites.find((x) => !getSiteClaim(trial.nctId, x));
+    setClaimTarget({ trial: full, defaultSiteKey: preferred?.key });
+  }
+
+  function openExistingClaim(claim: TrialClaim) {
+    const full = studyFor(claim.nctId, claim);
+    if (full) setClaimTarget({ trial: full, claim });
+  }
 
   async function handleApprove(c: UserProfile) {
     setBusyUid(c.uid);
@@ -159,14 +240,7 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
     }
   }
 
-  function getTrialClaim(trial: TrialSite): TrialClaim | undefined {
     return (
-      claimsMap.get(makeClaimId(trial.nctId, trial.facility)) ||
-      claimsMap.get(`${trial.nctId}__${trial.facility.toLowerCase().trim()}`)
-    );
-  }
-
-  return (
     <div className="tw-admin">
       <PortalHeader
         right={
@@ -192,11 +266,11 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
           </div>
           <div className="pi-kpi-group">
             <div className="pi-kpi-item">
-              <span className="pi-kpi-num">{hospitalFilteredTrials.length}</span>
+              <span className="pi-kpi-num">{hospitalTrials.length}</span>
               <span className="pi-kpi-lbl">Trials at Hospital</span>
             </div>
             <div className="pi-kpi-item">
-              <span className="pi-kpi-num">{myClaimedTrials.length}</span>
+              <span className="pi-kpi-num">{myClaimsByNct.size}</span>
               <span className="pi-kpi-lbl">Claimed Studies</span>
             </div>
             {isDoctor && (
@@ -214,13 +288,13 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
             className={`portal-tab ${activeTab === 'hospital-trials' ? 'active' : ''}`}
             onClick={() => setActiveTab('hospital-trials')}
           >
-            🏥 Hospital Clinical Trials ({hospitalFilteredTrials.length})
+            🏥 Hospital Clinical Trials ({hospitalTrials.length})
           </button>
           <button
             className={`portal-tab ${activeTab === 'claimed-trials' ? 'active' : ''}`}
             onClick={() => setActiveTab('claimed-trials')}
           >
-            🛡️ Claimed Trials ({myClaimedTrials.length})
+            🛡️ Claimed Trials ({myClaimsByNct.size})
           </button>
           {isDoctor && (
             <button
@@ -282,7 +356,7 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
                     onChange={(e) => setCancerFilter(e.target.value)}
                     className="claim-select"
                   >
-                    <option value="all">All Cancer Types ({hospitalFilteredTrials.length})</option>
+                    <option value="all">All Cancer Types ({hospitalTrials.length})</option>
                     {CANCERS.map((c) => (
                       <option key={c} value={c}>
                         {c}
@@ -317,18 +391,21 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
                 </p>
                 <div style={{ marginTop: 14 }}>
                   <button className="btn" onClick={() => setHospitalQuery('')}>
-                    View All Indian Trials ({allTrials.length})
+                    View All Indian Trials ({groupsById.size})
                   </button>
                 </div>
               </div>
             ) : (
               <div className="trials-listing">
                 {visibleTrials.map((trial) => {
-                  const claim = getTrialClaim(trial);
-                  const isClaimedByMe = claim?.claimedByUid === user.uid;
+                  const siteClaims = trial.sites.map((site) => ({ site, claim: getSiteClaim(trial.nctId, site) }));
+                  const anyClaimed = siteClaims.some((x) => x.claim);
+                  const totalSites = groupsById.get(trial.nctId)?.sites.length ?? trial.sites.length;
+                  const study = groupsById.get(trial.nctId);
+                  const hasUnclaimedSite = (study?.sites ?? trial.sites).some((x) => !getSiteClaim(trial.nctId, x));
 
                   return (
-                    <div key={trial.key} className={`pi-trial-card ${claim ? 'claimed' : ''}`}>
+                    <div key={trial.key} className={`pi-trial-card ${anyClaimed ? 'claimed' : ''}`}>
                       <div className="pi-trial-top">
                         <div className="pi-trial-pills">
                           <span className="pill on">✓ {trial.overallStatus}</span>
@@ -346,75 +423,62 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
 
                       <h3 className="pi-trial-title">{trial.briefTitle}</h3>
 
-                      <div className="pi-trial-site">
-                        <b>📍 {trial.facility}</b>
-                        {trial.city && <span> · {trial.city}</span>}
-                        {trial.state && <span>, {trial.state}</span>}
-                      </div>
+                      {totalSites > 1 && (
+                        <div className="sup" style={{ marginBottom: 6 }}>
+                          Runs at {totalSites} locations in India
+                          {trial.sites.length < totalSites ? ` · ${trial.sites.length} matching your hospital` : ''}
+                        </div>
+                      )}
 
-                      {/* Claim Status Badge and Details */}
-                      {claim ? (
-                        <div className="claim-status-box verified">
-                          <div className="claim-status-header">
-                            <span className="verified-icon">🛡️</span>
-                            <b>
-                              {isClaimedByMe
-                                ? 'Claimed by You (Principal Investigator / Study Team)'
-                                : `Claimed by ${claim.claimedByName} (${claim.claimedByRole})`}
-                            </b>
+                      {siteClaims.map(({ site, claim }) => (
+                        <div key={site.key}>
+                          <div className="pi-trial-site">
+                            <b>📍 {site.facility}</b>
+                            {site.city && <span> · {site.city}</span>}
+                            {site.state && <span>, {site.state}</span>}
                           </div>
-                          <div className="claim-contact-details">
-                            {claim.contactPhone && (
-                              <span>
-                                📞 Direct Phone: <a href={`tel:${claim.contactPhone}`}>{claim.contactPhone}</a>
-                              </span>
-                            )}
-                            {claim.contactEmail && (
-                              <span>
-                                ✉️ Email: <a href={`mailto:${claim.contactEmail}`}>{claim.contactEmail}</a>
-                              </span>
-                            )}
-                            {claim.department && <span>🏢 {claim.department}</span>}
-                          </div>
-                          {claim.notes && (
-                            <div className="claim-notes-preview">
-                              <b>Screening Notes:</b> {claim.notes}
-                            </div>
+                          {claim ? (
+                            <>
+                              <ClaimDetails claim={claim} isMine={claim.claimedByUid === user.uid} />
+                              {claim.claimedByUid === user.uid && (
+                                <div className="pi-trial-actions">
+                                  <button
+                                    className="btn"
+                                    onClick={() => openExistingClaim(claim)}
+                                    title="Edit contact phone number or claim details"
+                                  >
+                                    ✏️ Edit Claim Contact Info
+                                  </button>
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              <div className="claim-status-box unclaimed">
+                                <div className="unclaimed-text">
+                                  <b>Unclaimed at this location:</b> Claim this trial to publish your direct contact
+                                  number and verify Principal Investigator study leadership for referring oncologists.
+                                </div>
+                              </div>
+                              {site.contactPhone && (
+                                <div className="pi-registry-contact">
+                                  <span className="sup">Registry default contact:</span>{' '}
+                                  {site.contactName && <span>{site.contactName} · </span>}
+                                  <span>📞 {site.contactPhone}</span>
+                                </div>
+                              )}
+                            </>
                           )}
                         </div>
-                      ) : (
-                        <div className="claim-status-box unclaimed">
-                          <div className="unclaimed-text">
-                            <b>Unclaimed Trial at your Center:</b> Claim this trial to publish your direct contact
-                            number and verify Principal Investigator study leadership for referring oncologists.
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Registry Contacts */}
-                      {trial.contactPhone && !claim && (
-                        <div className="pi-registry-contact">
-                          <span className="sup">Registry default contact:</span>{' '}
-                          {trial.contactName && <span>{trial.contactName} · </span>}
-                          <span>📞 {trial.contactPhone}</span>
-                        </div>
-                      )}
+                      ))}
 
                       {/* Actions */}
                       <div className="pi-trial-actions">
-                        {claim ? (
-                          <button
-                            className="btn"
-                            onClick={() => setClaimingTrial(trial)}
-                            title="Edit contact phone number or claim details"
-                          >
-                            ✏️ Edit Claim Contact Info
-                          </button>
-                        ) : (
+                        {hasUnclaimedSite && (
                           <button
                             className="btn primary"
-                            onClick={() => setClaimingTrial(trial)}
-                            title="Claim this trial for your center and add direct contact details"
+                            onClick={() => openNewClaim(trial)}
+                            title="Choose a location for this trial and add direct contact details"
                           >
                             🛡️ Claim this Trial
                           </button>
@@ -446,7 +510,7 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
               </span>
             </div>
 
-            {myClaimedTrials.length === 0 ? (
+            {myClaimsByNct.size === 0 ? (
               <div className="card full" style={{ textAlign: 'center', padding: '36px 20px' }}>
                 <div style={{ fontSize: 32, marginBottom: 8 }}>🛡️</div>
                 <b>You haven't claimed any clinical trials yet.</b>
@@ -464,55 +528,43 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
               </div>
             ) : (
               <div className="trials-listing">
-                {myClaimedTrials.map((trial) => {
-                  const claim = getTrialClaim(trial);
+                {[...myClaimsByNct.entries()].map(([nctId, nctClaims]) => {
+                  const study = groupsById.get(nctId);
                   return (
-                    <div key={trial.key} className="pi-trial-card claimed">
+                    <div key={nctId} className="pi-trial-card claimed">
                       <div className="pi-trial-top">
                         <div className="pi-trial-pills">
-                          <span className="pill on">✓ {trial.overallStatus}</span>
+                          {study?.overallStatus && <span className="pill on">✓ {study.overallStatus}</span>}
                           <span className="pill" style={{ background: '#e3f7e9', color: '#16794b' }}>
-                            ✓ Active Claim
+                            ✓ Active Claim{nctClaims.length > 1 ? `s (${nctClaims.length} locations)` : ''}
                           </span>
+                          {(study?.cancerType || nctClaims[0].cancerType) && (
+                            <span className="pill" style={{ background: 'var(--wash)', color: 'var(--brand-d)' }}>
+                              {study?.cancerType || nctClaims[0].cancerType}
+                            </span>
+                          )}
                         </div>
-                        <span className="src">{trial.nctId}</span>
+                        <span className="src">{nctId}</span>
                       </div>
-                      <h3 className="pi-trial-title">{trial.briefTitle}</h3>
-                      <div className="pi-trial-site">
-                        <b>📍 {trial.facility}</b>
-                        {trial.city && <span> · {trial.city}</span>}
-                      </div>
+                      <h3 className="pi-trial-title">{study?.briefTitle ?? nctClaims[0].briefTitle ?? nctId}</h3>
 
-                      {claim && (
-                        <div className="claim-status-box verified">
-                          <div className="claim-contact-details">
-                            {claim.contactPhone && (
-                              <span>
-                                📞 Direct Line: <a href={`tel:${claim.contactPhone}`}>{claim.contactPhone}</a>
-                              </span>
-                            )}
-                            {claim.contactEmail && (
-                              <span>
-                                ✉️ Email: <a href={`mailto:${claim.contactEmail}`}>{claim.contactEmail}</a>
-                              </span>
-                            )}
-                            {claim.department && <span>🏢 {claim.department}</span>}
-                          </div>
-                          {claim.notes && (
-                            <div className="claim-notes-preview">
-                              <b>Screening Notes:</b> {claim.notes}
+                      {nctClaims.map((claim) => (
+                        <div key={claim.id}>
+                          <ClaimDetails claim={claim} isMine={claim.claimedByUid === user.uid} />
+                          {claim.claimedByUid === user.uid && (
+                            <div className="pi-trial-actions">
+                              <button className="btn primary" onClick={() => openExistingClaim(claim)}>
+                                Manage Claim & Contact Info
+                              </button>
                             </div>
                           )}
                         </div>
-                      )}
+                      ))}
 
                       <div className="pi-trial-actions">
-                        <button className="btn primary" onClick={() => setClaimingTrial(trial)}>
-                          Manage Claim & Contact Info
-                        </button>
                         <a
                           className="btn"
-                          href={`https://clinicaltrials.gov/study/${trial.nctId}`}
+                          href={`https://clinicaltrials.gov/study/${nctId}`}
                           target="_blank"
                           rel="noopener"
                         >
@@ -606,14 +658,17 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
       </div>
 
       {/* Claim Trial Modal */}
-      {claimingTrial && (
+      {claimTarget && (
         <ClaimTrialModal
-          trial={claimingTrial}
+          key={`${claimTarget.trial.nctId}__${claimTarget.claim?.id ?? 'new'}`}
+          trial={claimTarget.trial}
           profile={profile}
-          existingClaim={getTrialClaim(claimingTrial)}
+          existingClaim={claimTarget.claim}
+          allClaims={claims}
+          defaultSiteKey={claimTarget.defaultSiteKey}
           savedPhones={savedPhones}
-          isOpen={Boolean(claimingTrial)}
-          onClose={() => setClaimingTrial(null)}
+          isOpen
+          onClose={() => setClaimTarget(null)}
         />
       )}
     </div>

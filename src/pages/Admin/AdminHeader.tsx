@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { Logo } from '../../components/Logo';
 
 export function AdminHeader({ right }: { right?: ReactNode }) {
@@ -11,7 +12,11 @@ export function AdminHeader({ right }: { right?: ReactNode }) {
         <div className="top-inner">
           <Logo />
           <div className="brand">
-            <h1>TrialWiz · Demand Intelligence</h1>
+            <h1>
+              <Link to="/" className="homelink">
+                TrialWiz · Demand Intelligence
+              </Link>
+            </h1>
             <p className="byline">by Dr. Veenoo Agarwal</p>
             <p>What India is searching for — the feasibility signal, in aggregate</p>
           </div>

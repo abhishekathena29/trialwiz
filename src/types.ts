@@ -91,9 +91,12 @@ export interface UserProfile {
 export interface TrialClaim {
   id: string;
   nctId: string;
+  /** The registry site (location) being claimed — one NCT ID can run at many sites. */
   facility: string;
   city?: string;
   state?: string;
+  /** Hospital the claiming PI/coordinator is registered with (from their profile). */
+  hospitalName?: string;
   briefTitle?: string;
   cancerType?: string;
   claimedByUid: string;

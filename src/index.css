@@ -1,1 +1,7 @@
 @import './styles/tokens.css';
+
+/* Brand name in page headers links home without looking like a link. */
+.homelink {
+  color: inherit;
+  text-decoration: none;
+}

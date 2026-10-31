@@ -6,6 +6,7 @@ import { Logo } from '../../components/Logo';
 import { CITIES, matchCity } from '../../data/cities';
 import { REGIONS, normalizeState } from '../../data/regions';
 import { useAuthUser } from '../../hooks/useAuthUser';
+import { useUserProfile } from '../../hooks/useUserProfile';
 import { useFavorites } from '../../hooks/useFavorites';
 import { useTrialCatalogue } from '../../hooks/useTrialCatalogue';
 import type { TrialSite } from '../../types';
@@ -29,6 +30,7 @@ type ActiveList = { kind: 'cancer'; value: string } | { kind: 'centre'; facility
 export function PublicSearch() {
   const { rows, loading, error, fetchedAt, refetch } = useTrialCatalogue();
   const { user, loading: authLoading } = useAuthUser();
+  const { profile } = useUserProfile(user);
   const { favorites, isFavorite, toggleFavorite } = useFavorites(user);
 
   const [locMode, setLocMode] = useState<LocMode>('none');
@@ -259,6 +261,15 @@ export function PublicSearch() {
     logUsage('search', cond || '(any cancer)', filters.other ? `other:${filters.other}` : undefined);
   }
 
+  /** Logo / brand-name click: back to the initial landing view, even when already on "/". */
+  function goHome() {
+    setSeg('cancer');
+    setActiveList(null);
+    setDetailTrial(null);
+    setSearchResults(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
   function changeSeg(s: Seg) {
     setSeg(s);
     setActiveList(null);
@@ -283,16 +294,28 @@ export function PublicSearch() {
     <div className="tw-public">
       <header className="top">
         <div className="top-inner">
-          <Logo />
+          <Logo onClick={goHome} />
           <div className="brand">
-            <h1>TrialWiz&nbsp;·&nbsp;Trial Finder</h1>
+            <h1>
+              <Link to="/" className="homelink" onClick={goHome}>
+                TrialWiz&nbsp;·&nbsp;Trial Finder
+              </Link>
+            </h1>
             <p className="byline">by Dr. Veenoo Agarwal</p>
             <p>Recruiting cancer trials in India — plain language, near your patient</p>
           </div>
           <div className="headnav">
-            <Link className="navlink" to="/portal">
-              Provider login
-            </Link>
+            {/* Signed-in users never see login options: providers get their dashboard, everyone else their account. */}
+            {!user && !authLoading && (
+              <Link className="navlink" to="/portal">
+                Provider login
+              </Link>
+            )}
+            {profile && (
+              <Link className="navlink" to="/portal">
+                Dashboard
+              </Link>
+            )}
             <button className="accountpill" onClick={() => changeSeg('saved')} title={user ? user.email ?? '' : 'Sign in to save trials'}>
               {user ? user.email : 'Sign in'}
             </button>

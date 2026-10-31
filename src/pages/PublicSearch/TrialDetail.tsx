@@ -72,6 +72,7 @@ function LocationCard({ site, label, nctId }: { site: TrialLocation; label: stri
         <div className="verified-pi-banner" style={{ margin: '10px 0 8px' }}>
           <span className="shield-icon">🛡️</span>
           <span>Verified Site Lead: <b>{contactName}</b></span>
+          {claim.hospitalName && <span className="dept-note"> · {claim.hospitalName}</span>}
           {claim.department && <span className="dept-note"> · {claim.department}</span>}
           {claim.notes && (
             <div style={{ fontSize: 12, marginTop: 4, color: 'var(--ink)' }}>

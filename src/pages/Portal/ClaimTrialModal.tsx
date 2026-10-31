@@ -1,12 +1,22 @@
 import { useState } from 'react';
-import { claimTrial, makeClaimId, unclaimTrial } from '../../services/trialClaims';
-import type { TrialClaim, TrialSite, UserProfile } from '../../types';
+import { claimMatchesSite, claimTrial, makeClaimId, unclaimTrial } from '../../services/trialClaims';
+import type { TrialClaim, UserProfile } from '../../types';
+import type { GroupedTrial, TrialLocation } from '../../utils/groupTrials';
 import './Portal.css';
 
+function siteLabel(site: TrialLocation): string {
+  return [site.facility, site.city, site.state].filter(Boolean).join(', ');
+}
+
 interface Props {
-  trial: TrialSite;
+  /** The whole study with every site it runs at — the PI picks which location they're claiming. */
+  trial: GroupedTrial;
   profile: UserProfile;
   existingClaim?: TrialClaim;
+  /** All claims, so sites already claimed by someone else can't be claimed twice. */
+  allClaims: TrialClaim[];
+  /** Site to preselect for a new claim (usually the one matching the PI's hospital). */
+  defaultSiteKey?: string;
   savedPhones?: string[];
   isOpen: boolean;
   onClose: () => void;
@@ -17,15 +27,32 @@ export function ClaimTrialModal({
   trial,
   profile,
   existingClaim,
+  allClaims,
+  defaultSiteKey,
   savedPhones = [],
   isOpen,
   onClose,
   onSuccess,
 }: Props) {
+  function claimedByOther(site: TrialLocation): TrialClaim | undefined {
+    return allClaims.find((c) => c.id !== existingClaim?.id && claimMatchesSite(c, trial.nctId, site));
+  }
+
+  // An existing claim stays pinned to its location; to move it, release and claim the other site.
+  const existingSite = existingClaim
+    ? trial.sites.find((s) => claimMatchesSite(existingClaim, trial.nctId, s))
+    : undefined;
+  const [siteKey, setSiteKey] = useState<string>(
+    existingSite?.key ??
+      (existingClaim ? '' : (defaultSiteKey ?? trial.sites.find((s) => !claimedByOther(s))?.key ?? '')),
+  );
+  const site = trial.sites.find((s) => s.key === siteKey);
+  const hospitalName = (profile.facility ?? '').trim();
+
   // Candidate phone options: registry phone, saved phones from profile or other claims
   const initialAvailablePhones = Array.from(
     new Set(
-      [existingClaim?.contactPhone, trial.contactPhone, ...savedPhones]
+      [existingClaim?.contactPhone, site?.contactPhone, ...savedPhones]
         .filter(Boolean)
         .map((p) => String(p).trim()),
     ),
@@ -59,7 +86,14 @@ export function ClaimTrialModal({
 
   const resolvedPhone =
     selectedPhoneOption === 'custom' ? customPhone.trim() : selectedPhoneOption.trim();
-  const canSave = !busy && confirmed && resolvedPhone.length >= 7 && contactEmail.trim().length > 0;
+  const locationOk = Boolean(existingClaim || (site && !claimedByOther(site)));
+  const canSave =
+    !busy &&
+    confirmed &&
+    locationOk &&
+    hospitalName.length > 0 &&
+    resolvedPhone.length >= 7 &&
+    contactEmail.trim().length > 0;
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -67,13 +101,18 @@ export function ClaimTrialModal({
     setBusy(true);
     setErr('');
     try {
-      const claimId = existingClaim?.id || makeClaimId(trial.nctId, trial.facility);
+      // Legacy claims may point at a site no longer in the registry feed — keep their stored location.
+      const facility = site?.facility ?? existingClaim?.facility ?? '';
+      const city = site?.city ?? existingClaim?.city;
+      const state = site?.state ?? existingClaim?.state;
+      const claimId = existingClaim?.id || makeClaimId(trial.nctId, facility, city);
       await claimTrial({
         id: claimId,
         nctId: trial.nctId,
-        facility: trial.facility,
-        city: trial.city,
-        state: trial.state,
+        facility,
+        city,
+        state,
+        hospitalName,
         briefTitle: trial.briefTitle,
         cancerType: trial.cancerType,
         claimedByUid: profile.uid,
@@ -124,7 +163,8 @@ export function ClaimTrialModal({
             </span>
             <h2>{existingClaim ? 'Manage Trial Claim' : 'Claim this Clinical Trial'}</h2>
             <p className="claim-sub">
-              {trial.nctId} · {trial.facility}{trial.city ? `, ${trial.city}` : ''}
+              {trial.nctId}
+              {trial.sites.length > 1 ? ` · runs at ${trial.sites.length} locations` : ''}
             </p>
           </div>
           <button className="claim-close-btn" onClick={onClose} type="button">
@@ -144,6 +184,62 @@ export function ClaimTrialModal({
         {err && <div className="login-err" style={{ margin: '12px 0' }}>{err}</div>}
 
         <form onSubmit={handleSave} className="claim-form">
+          {/* Location — the same NCT ID can run at many sites */}
+          <div className="form-group">
+            <label htmlFor="claim-site-select">
+              Trial Location <span className="req">*</span>
+            </label>
+            <span className="field-hint">
+              {existingClaim
+                ? 'This claim is tied to the location below. To claim a different location, release this claim first.'
+                : 'This study runs at multiple sites — choose the location you lead the trial at.'}
+            </span>
+            {existingClaim ? (
+              <input
+                id="claim-site-select"
+                className="claim-input"
+                value={site ? siteLabel(site) : [existingClaim.facility, existingClaim.city, existingClaim.state].filter(Boolean).join(', ')}
+                readOnly
+                disabled
+              />
+            ) : (
+              <select
+                id="claim-site-select"
+                value={siteKey}
+                onChange={(e) => {
+                  const next = trial.sites.find((s) => s.key === e.target.value);
+                  setSiteKey(e.target.value);
+                  setSelectedPhoneOption(next?.contactPhone?.trim() || savedPhones[0] || 'custom');
+                  setCustomPhone('');
+                }}
+                className="claim-select"
+                required
+              >
+                <option value="" disabled>
+                  Select a location…
+                </option>
+                {trial.sites.map((s) => {
+                  const other = claimedByOther(s);
+                  return (
+                    <option key={s.key} value={s.key} disabled={Boolean(other)}>
+                      📍 {siteLabel(s)}
+                      {other ? ` — already claimed by ${other.claimedByName}` : ''}
+                    </option>
+                  );
+                })}
+              </select>
+            )}
+          </div>
+
+          {/* Hospital — always the one the PI/coordinator is registered with */}
+          <div className="form-group">
+            <label htmlFor="claim-hospital">
+              Your Hospital <span className="req">*</span>
+            </label>
+            <span className="field-hint">Filled in from your registered provider profile.</span>
+            <input id="claim-hospital" className="claim-input" value={hospitalName || 'Hospital not set on your profile'} readOnly disabled />
+          </div>
+
           {/* Checkbox confirmation */}
           <div className="claim-confirm-card">
             <label className="checkbox-label">
@@ -155,7 +251,7 @@ export function ClaimTrialModal({
               />
               <span>
                 <b>I confirm that I am the Principal Investigator</b> (or authorized clinical study coordinator)
-                for this clinical trial at <b>{trial.facility}</b>.
+                for this clinical trial at <b>{site ? siteLabel(site) : existingClaim?.facility ?? 'the selected location'}</b>.
               </span>
             </label>
           </div>
@@ -181,7 +277,7 @@ export function ClaimTrialModal({
             >
               {initialAvailablePhones.map((ph) => (
                 <option key={ph} value={ph}>
-                  📞 {ph} {trial.contactPhone === ph ? '(Registry default)' : '(Saved site number)'}
+                  📞 {ph} {site?.contactPhone === ph ? '(Registry default)' : '(Saved site number)'}
                 </option>
               ))}
               <option value="custom">➕ Add or enter a new contact phone number...</option>
