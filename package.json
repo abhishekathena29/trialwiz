@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "seed:registry": "tsx scripts/seed-registry.ts"
+    "seed:registry": "tsx scripts/seed-registry.ts",
+    "create-admin": "tsx scripts/create-admin.ts"
   },
   "dependencies": {
     "firebase": "^12.17.1",
