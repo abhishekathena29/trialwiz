@@ -2,7 +2,7 @@ import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'fire
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { auth, firebaseConfigured } from '../../firebase';
-import { createCoordinatorProfile, createDoctorProfile, findDoctorByEmail } from '../../services/profiles';
+import { createCoordinatorProfile, createDoctorProfile, findDoctorByEmail, recordSignIn } from '../../services/profiles';
 import type { UserProfile, UserRole } from '../../types';
 import { friendlyAuthError } from '../../utils/authErrors';
 import { PortalHeader } from './PortalHeader';
@@ -125,7 +125,8 @@ export function PortalAuth() {
           );
         }
       } else {
-        await signInWithEmailAndPassword(auth, email.trim(), password);
+        const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
+        await recordSignIn(cred.user);
       }
     } catch (e) {
       console.error('[TrialWiz] portal auth error:', e);

@@ -1,4 +1,5 @@
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { recordSignIn } from '../../services/profiles';
 import { useState } from 'react';
 import { logUsage } from '../../analytics/usageLog';
 import { auth, firebaseConfigured } from '../../firebase';
@@ -33,10 +34,13 @@ export function AuthPanel() {
     setBusy(true);
     try {
       if (mode === 'signup') {
-        await createUserWithEmailAndPassword(auth, email.trim(), password);
+        const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+        await recordSignIn(cred.user, 'user');
         logUsage('signup', 'email');
       } else {
-        await signInWithEmailAndPassword(auth, email.trim(), password);
+        const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
+        // Also backfills a profile for accounts created before profiles were recorded.
+        await recordSignIn(cred.user, 'user');
         logUsage('signin', 'email');
       }
     } catch (e) {

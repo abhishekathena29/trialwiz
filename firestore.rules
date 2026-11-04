@@ -74,77 +74,79 @@ service cloud.firestore {
       allow update: if (request.auth != null && resource.data.claimedByUid == request.auth.uid) || isAdmin();
       allow delete: if (request.auth != null && resource.data.claimedByUid == request.auth.uid) || isAdmin();
     }
-  }
 
-  function isAdmin() {
-    return request.auth != null &&
-      exists(/databases/$(database)/documents/admins/$(request.auth.uid));
-  }
+    function isAdmin() {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
 
-  function isValidProfileCreate(uid, data) {
-    return request.auth.uid == uid && data.uid == uid &&
-      data.email is string && data.name is string &&
-      data.role in ['doctor', 'coordinator'] &&
-      ((data.role == 'doctor' && data.status in ['pending', 'approved'] && data.facility is string) ||
-        (data.role == 'coordinator' && data.status == 'pending' &&
-         data.requestedDoctorEmail is string &&
-         data.facility is string && data.city is string));
-  }
+    function isValidProfileCreate(uid, data) {
+      // Role 'admin' profiles are only created by an admin (allowed via isAdmin() at the call site).
+      return request.auth.uid == uid && data.uid == uid &&
+        data.email is string && data.name is string &&
+        data.role in ['user', 'doctor', 'coordinator'] &&
+        ((data.role == 'user' && !('status' in data)) ||
+         (data.role == 'doctor' && data.status in ['pending', 'approved'] && data.facility is string) ||
+          (data.role == 'coordinator' && data.status == 'pending' &&
+           data.requestedDoctorEmail is string &&
+           data.facility is string && data.city is string));
+    }
 
-  // Owner can edit their own profile, but never grant themselves coordinator/doctor approval and
-  // never change their own uid/role.
-  function isSelfProfileUpdate(uid, data) {
-    return request.auth != null && request.auth.uid == uid &&
-      data.uid == uid && data.role == resource.data.role &&
-      (data.status != 'approved' || resource.data.status == 'approved');
-  }
+    // Owner can edit their own profile, but never grant themselves coordinator/doctor approval and
+    // never change their own uid/role.
+    function isSelfProfileUpdate(uid, data) {
+      return request.auth != null && request.auth.uid == uid &&
+        data.uid == uid && data.role == resource.data.role &&
+        (data.status != 'approved' || resource.data.status == 'approved');
+    }
 
-  function isDoctor() {
-    return request.auth != null &&
-      exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-      get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'doctor';
-  }
+    function isDoctor() {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'doctor';
+    }
 
-  function isApprovedDoctor() {
-    return request.auth != null &&
-      exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-      get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'doctor' &&
-      get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'approved';
-  }
+    function isApprovedDoctor() {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'doctor' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'approved';
+    }
 
-  // A doctor may only flip status/doctorUid on a coordinator profile that named their email —
-  // and can only ever set doctorUid to *their own* uid (approved) or null (rejected), never an
-  // arbitrary value, so the profile's doctor-link can't be forged to point elsewhere.
-  function isDoctorApproval(data) {
-    return isApprovedDoctor() &&
-      resource.data.role == 'coordinator' &&
-      resource.data.requestedDoctorEmail == request.auth.token.email &&
-      data.diff(resource.data).affectedKeys().hasOnly(['status', 'doctorUid']) &&
-      ((data.status == 'approved' && data.doctorUid == request.auth.uid) ||
-       (data.status == 'rejected' && data.doctorUid == null));
-  }
+    // A doctor may only flip status/doctorUid on a coordinator profile that named their email —
+    // and can only ever set doctorUid to *their own* uid (approved) or null (rejected), never an
+    // arbitrary value, so the profile's doctor-link can't be forged to point elsewhere.
+    function isDoctorApproval(data) {
+      return isApprovedDoctor() &&
+        resource.data.role == 'coordinator' &&
+        resource.data.requestedDoctorEmail == request.auth.token.email &&
+        data.diff(resource.data).affectedKeys().hasOnly(['status', 'doctorUid']) &&
+        ((data.status == 'approved' && data.doctorUid == request.auth.uid) ||
+         (data.status == 'rejected' && data.doctorUid == null));
+    }
 
-  function isApprovedCoordinator() {
-    return request.auth != null &&
-      exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-      get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coordinator' &&
-      get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'approved';
-  }
+    function isApprovedCoordinator() {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coordinator' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'approved';
+    }
 
-  function isValidDemandEvent(data) {
-    return data.keys().hasOnly(['cond', 'where', 'line', 'met', 'bio', 'resultCount', 'createdAt']) &&
-      data.cond is string && data.cond.size() < 200 &&
-      data.where is string && data.where.size() < 200 &&
-      data.line is string && data.met is string && data.bio is string && data.bio.size() < 200 &&
-      data.resultCount is int && data.resultCount >= 0 &&
-      data.createdAt == request.time;
-  }
+    function isValidDemandEvent(data) {
+      return data.keys().hasOnly(['cond', 'where', 'line', 'met', 'bio', 'resultCount', 'createdAt']) &&
+        data.cond is string && data.cond.size() < 200 &&
+        data.where is string && data.where.size() < 200 &&
+        data.line is string && data.met is string && data.bio is string && data.bio.size() < 200 &&
+        data.resultCount is int && data.resultCount >= 0 &&
+        data.createdAt == request.time;
+    }
 
-  function isValidUsageEvent(data) {
-    return data.keys().hasOnly(['type', 'label', 'meta', 'createdAt']) &&
-      data.type in ['search', 'browse', 'location', 'click', 'signup', 'signin', 'favorite'] &&
-      data.label is string && data.label.size() < 200 &&
-      data.meta is string && data.meta.size() < 200 &&
-      data.createdAt == request.time;
+    function isValidUsageEvent(data) {
+      return data.keys().hasOnly(['type', 'label', 'meta', 'createdAt']) &&
+        data.type in ['search', 'browse', 'location', 'click', 'signup', 'signin', 'favorite'] &&
+        data.label is string && data.label.size() < 200 &&
+        data.meta is string && data.meta.size() < 200 &&
+        data.createdAt == request.time;
+    }
   }
 }

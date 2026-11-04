@@ -117,7 +117,7 @@ export function ClaimTrialModal({
         cancerType: trial.cancerType,
         claimedByUid: profile.uid,
         claimedByName: profile.name,
-        claimedByRole: profile.role,
+        claimedByRole: profile.role === 'doctor' ? 'doctor' : 'coordinator',
         claimedByEmail: profile.email,
         contactPhone: resolvedPhone,
         contactEmail: contactEmail.trim(),

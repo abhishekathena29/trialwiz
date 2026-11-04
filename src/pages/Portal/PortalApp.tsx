@@ -68,7 +68,8 @@ export function PortalApp() {
   if (authLoading) return <Loading />;
   if (!user) return <PortalAuth />;
   if (profileLoading) return <Loading />;
-  if (!profile) return <NotRegistered email={user.email} />;
+  // Public Trial Finder and admin accounts also have a users/ profile, but aren't providers.
+  if (!profile || profile.role === 'user' || profile.role === 'admin') return <NotRegistered email={user.email} />;
 
   if (profile.role === 'doctor') {
     if (profile.status !== 'approved') {

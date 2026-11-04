@@ -89,6 +89,9 @@ export interface DemandLogEvent {
 }
 
 export type UserRole = 'doctor' | 'coordinator';
+/** Every signed-in account gets a `users/{uid}` doc: public Trial Finder accounts are 'user',
+ * owner dashboard accounts are 'admin', provider-portal accounts are a `UserRole`. */
+export type AccountRole = UserRole | 'user' | 'admin';
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 export type CoordinatorStatus = ApprovalStatus;
 
@@ -98,8 +101,11 @@ export interface UserProfile {
   uid: string;
   email: string;
   name: string;
-  role: UserRole;
+  role: AccountRole;
   createdAt: unknown;
+  lastLoginAt?: unknown;
+  /** Firebase Auth provider of the first sign-in, e.g. "password". */
+  signInProvider?: string;
   /** Hospital / Institution name — used for doctors (Principal Investigators) and coordinators */
   facility?: string;
   city?: string;

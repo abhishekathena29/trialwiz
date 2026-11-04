@@ -1,6 +1,6 @@
 /**
  * Creates (or signs in to) an email/password Firebase Auth user and adds it to the Firestore
- * `admins` allowlist that gates /admin.
+ * `admins` allowlist that gates /admin, plus its `users/{uid}` profile (role 'admin').
  *
  *   npm run create-admin -- you@example.com
  *
@@ -48,6 +48,13 @@ try {
   console.log('Auth user already existed — signed in.');
 }
 
-await setDoc(doc(getFirestore(app), 'admins', cred.user.uid), { email, createdAt: serverTimestamp() });
-console.log(`Added admins/${cred.user.uid}. Sign in at /admin with ${email}.`);
+const db = getFirestore(app);
+await setDoc(doc(db, 'admins', cred.user.uid), { email, createdAt: serverTimestamp() });
+// Same profile shape recordSignIn() writes, so every account type is listed in users/.
+await setDoc(
+  doc(db, 'users', cred.user.uid),
+  { uid: cred.user.uid, email, name: email.split('@')[0], role: 'admin', signInProvider: 'password', createdAt: serverTimestamp() },
+  { merge: true },
+);
+console.log(`Added admins/${cred.user.uid} and users/${cred.user.uid}. Sign in at /admin with ${email}.`);
 process.exit(0);

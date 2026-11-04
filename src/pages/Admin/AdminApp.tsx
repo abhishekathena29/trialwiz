@@ -1,5 +1,6 @@
 import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
+import { recordSignIn } from '../../services/profiles';
 import { useEffect, useState } from 'react';
 import { auth, db, firebaseConfigured } from '../../firebase';
 import './Admin.css';
@@ -61,6 +62,7 @@ export function AdminApp() {
       }
       const adminDoc = await getDoc(doc(firestore, 'admins', u.uid));
       if (adminDoc.exists()) {
+        void recordSignIn(u, 'admin');
         setUser(u);
         setState('admin');
       } else {

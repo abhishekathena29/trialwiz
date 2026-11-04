@@ -1,8 +1,9 @@
 import { deleteApp, initializeApp } from 'firebase/app';
-import { createUserWithEmailAndPassword, getAuth, signOut } from 'firebase/auth';
+import { createUserWithEmailAndPassword, getAuth, signOut, type User } from 'firebase/auth';
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   onSnapshot,
   query,
@@ -19,6 +20,35 @@ export const USERS_COLLECTION = 'users';
 function requireDb() {
   if (!db) throw new Error('Firebase is not configured — see README.md.');
   return db;
+}
+
+/**
+ * Records a sign-in in `users/{uid}`: stamps `lastLoginAt` on an existing profile, or — when
+ * `createAs` is given and there's no profile yet — creates a basic one. Portal sign-up writes its
+ * own richer doctor/coordinator doc, so portal sign-in passes no `createAs`. Never throws: a
+ * failed write is logged and must not block the sign-in itself.
+ */
+export async function recordSignIn(user: User, createAs?: 'user' | 'admin'): Promise<void> {
+  try {
+    const firestore = requireDb();
+    const ref = doc(firestore, USERS_COLLECTION, user.uid);
+    if ((await getDoc(ref)).exists()) {
+      await updateDoc(ref, { lastLoginAt: serverTimestamp() });
+    } else if (createAs) {
+      const email = user.email ?? '';
+      await setDoc(ref, {
+        uid: user.uid,
+        email,
+        name: user.displayName || email.split('@')[0],
+        role: createAs,
+        signInProvider: user.providerData[0]?.providerId ?? 'password',
+        createdAt: serverTimestamp(),
+        lastLoginAt: serverTimestamp(),
+      });
+    }
+  } catch (err) {
+    console.warn('[TrialWiz] failed to record sign-in in users/:', err);
+  }
 }
 
 export async function createDoctorProfile(
@@ -39,7 +69,9 @@ export async function createDoctorProfile(
     city: city.trim(),
     state: state.trim(),
     status: 'pending',
+    signInProvider: 'password',
     createdAt: serverTimestamp(),
+    lastLoginAt: serverTimestamp(),
   });
 }
 
@@ -153,7 +185,9 @@ export async function createCoordinatorProfile(
     facility,
     city,
     state,
+    signInProvider: 'password',
     createdAt: serverTimestamp(),
+    lastLoginAt: serverTimestamp(),
   });
 }
 
