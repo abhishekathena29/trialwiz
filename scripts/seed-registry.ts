@@ -58,6 +58,8 @@ async function main() {
     return;
   }
 
+  if (args.includes('--client')) return writeWithClientSdk(all, ids);
+
   initializeApp({ credential: applicationDefault(), projectId: PROJECT_ID });
   const db = getFirestore();
   const writer = db.bulkWriter();
@@ -69,6 +71,36 @@ async function main() {
 
   await writer.close();
   console.log(`Wrote ${all.length} docs to ${COLLECTION}, deleted ${stale.length} stale.`);
+}
+
+/** Writes with the public web config from `.env.local` instead of a service account. Only works
+ * while the deployed Firestore rules allow unauthenticated writes to `registryTrials`. */
+async function writeWithClientSdk(all: RegistryTrialDoc[], ids: Set<string>) {
+  const { initializeApp: initWebApp } = await import('firebase/app');
+  const { collection, doc, getDocs, getFirestore: getWebFirestore, writeBatch } = await import('firebase/firestore');
+  const env = Object.fromEntries(
+    readFileSync('.env.local', 'utf8')
+      .split('\n')
+      .map((l) => l.split('='))
+      .filter(([k, v]) => k && v),
+  );
+  const db = getWebFirestore(
+    initWebApp({ apiKey: env.VITE_FIREBASE_API_KEY, projectId: env.VITE_FIREBASE_PROJECT_ID, appId: env.VITE_FIREBASE_APP_ID }),
+  );
+
+  const stale = (await getDocs(collection(db, COLLECTION))).docs.filter((d) => !ids.has(d.id));
+  const ops: Array<(b: ReturnType<typeof writeBatch>) => void> = [
+    ...all.map((d) => (b: ReturnType<typeof writeBatch>) => b.set(doc(db, COLLECTION, trialDocId(d.nctId)), d)),
+    ...stale.map((s) => (b: ReturnType<typeof writeBatch>) => b.delete(s.ref)),
+  ];
+  // Batches cap at 500 writes and 10 MiB; 100 docs keeps well under the size cap.
+  for (let i = 0; i < ops.length; i += 100) {
+    const batch = writeBatch(db);
+    for (const op of ops.slice(i, i + 100)) op(batch);
+    await batch.commit();
+  }
+  console.log(`Wrote ${all.length} docs to ${COLLECTION} (client SDK), deleted ${stale.length} stale.`);
+  process.exit(0);
 }
 
 main().catch((e) => {
