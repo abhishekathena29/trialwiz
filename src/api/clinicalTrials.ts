@@ -67,14 +67,14 @@ interface RawResponse {
   nextPageToken?: string;
 }
 
-function detectMetastatic(text: string): TrialSite['metastatic'] {
+export function detectMetastatic(text: string): TrialSite['metastatic'] {
   if (/\bmetastat|stage\s*iv\b|advanced disease|recurrent\/metastatic/i.test(text)) return 'mentioned';
   if (/\bearly[- ]stage|locali[sz]ed|resectable|non[- ]metastatic|stage\s*i(?![iv])/i.test(text))
     return 'early-stage';
   return 'unspecified';
 }
 
-function detectLineOfTherapy(text: string): LineOfTherapy {
+export function detectLineOfTherapy(text: string): LineOfTherapy {
   if (/neoadjuvant/i.test(text)) return 'neoadjuvant';
   if (/adjuvant/i.test(text)) return 'adjuvant';
   if (/third[- ]line|3rd[- ]line|\b3l\b|refractory|relapsed\/refractory/i.test(text)) return 'third-line-plus';
@@ -130,6 +130,8 @@ function flattenStudy(study: RawStudy): TrialSite[] {
       startDate: statusModule?.startDateStruct?.date,
       eligibilityCriteria,
       briefSummary,
+      registry: 'ctgov' as const,
+      registryUrl: `https://clinicaltrials.gov/study/${identificationModule.nctId}`,
     };
   });
 }

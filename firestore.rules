@@ -58,6 +58,13 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Registry trials (ClinicalTrials.gov + CTRI), one doc per study. Public catalogue data;
+    // written only by scripts/seed-registry.ts via the Admin SDK, which bypasses these rules.
+    match /registryTrials/{id} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // Trial claims by Principal Investigators and site coordinators at their hospital center.
     // Publicly readable so verified investigator contact info is shown on public trial search.
     match /trialClaims/{claimId} {

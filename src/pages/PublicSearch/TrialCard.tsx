@@ -97,7 +97,9 @@ export function TrialCard({ trial, onOpenDetail, isFavorite, onToggleFavorite }:
   const metastaticNote = trial.metastatic === 'mentioned' ? 'advanced/metastatic disease mentioned' : '';
   const why = [trial.cancerType, primary?.city, setLabel, metastaticNote].filter(Boolean).join(' · ');
   const moreSites = trial.sites.slice(1);
-  const isRegistryTrial = /^NCT\d/.test(trial.nctId);
+  // Saved-trial snapshots and pre-CTRI cached rows carry no registryUrl; NCT ids are derivable.
+  const registryUrl = trial.registryUrl ?? (/^NCT\d/.test(trial.nctId) ? `https://clinicaltrials.gov/study/${trial.nctId}` : undefined);
+  const isRegistryTrial = Boolean(registryUrl);
 
   return (
     <div id={`trial-${trial.key}`} className={`trial${stale ? ' stale' : ''}`}>
@@ -191,7 +193,7 @@ export function TrialCard({ trial, onOpenDetail, isFavorite, onToggleFavorite }:
         {isRegistryTrial ? (
           <a
             className="btn"
-            href={`https://clinicaltrials.gov/study/${trial.nctId}`}
+            href={registryUrl}
             target="_blank"
             rel="noopener"
             onClick={() => logUsage('click', 'Registry record', trial.nctId)}
@@ -199,7 +201,7 @@ export function TrialCard({ trial, onOpenDetail, isFavorite, onToggleFavorite }:
             Registry record
           </a>
         ) : (
-          <span className="pill" title="Added directly by a hospital's trial coordinator, not from ClinicalTrials.gov">
+          <span className="pill" title="Added directly by a hospital's trial coordinator, not from a public registry">
             Hospital-submitted
           </span>
         )}

@@ -18,11 +18,21 @@ codebase:
 
 ## How the data flows
 
-- The public app fetches **live** recruiting oncology trials with an India site directly from
-  `clinicaltrials.gov/api/v2/studies` (CORS-enabled, no API key needed) — see
-  [`src/api/clinicalTrials.ts`](src/api/clinicalTrials.ts). Results are cached in `localStorage`
-  for 6 hours to avoid refetching ~200 studies on every page load; use "Refresh now" in the hero
-  to force a resync.
+- Registry trials live in Firestore `registryTrials`, one doc per study, from two sources:
+  recruiting India oncology studies from `clinicaltrials.gov/api/v2/studies` (see
+  [`src/api/clinicalTrials.ts`](src/api/clinicalTrials.ts)) and the CTRI oncology export at
+  [`data/ctri-oncology-trials.csv`](data/ctri-oncology-trials.csv) (mapped in
+  [`scripts/ctri.ts`](scripts/ctri.ts)). CTRI trials cross-registered on ClinicalTrials.gov are
+  merged into the CT.gov record; CTRI rows the export tags "Peripheral (not an oncology question)"
+  are stored but hidden from the public app. The CTRI export has no recruitment status, so those
+  trials show as "Registered", not "Recruiting".
+- Refresh the collection with `GOOGLE_APPLICATION_CREDENTIALS=<service-account.json> npm run
+  seed:registry` (add `-- --dry-run` to preview into `data/registry-preview.json`). It upserts
+  every study and deletes ones no longer in either source. Deploy the read rule once with
+  `firebase deploy --only firestore:rules`.
+- The public app reads `registryTrials` and caches it in `localStorage` for 6 hours; "Refresh
+  now" in the hero forces a reload. If Firestore holds no ClinicalTrials.gov rows (not seeded
+  yet, rules not deployed), it falls back to the live API for those.
 - ClinicalTrials.gov has no structured "cancer type", "therapy line", "metastatic", or
   "biomarker" field. Those facets are derived with keyword heuristics over each study's
   conditions/title/eligibility text — see [`src/data/cancerTaxonomy.ts`](src/data/cancerTaxonomy.ts)

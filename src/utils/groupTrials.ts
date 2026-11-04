@@ -31,6 +31,8 @@ export interface GroupedTrial {
   startDate?: string;
   eligibilityCriteria?: string;
   briefSummary?: string;
+  registry?: TrialSite['registry'];
+  registryUrl?: string;
   /** Nearest-first when distance is known, else registry order. */
   sites: TrialLocation[];
 }
@@ -62,6 +64,8 @@ export function groupByNctId(rows: TrialSite[]): GroupedTrial[] {
         startDate: r.startDate,
         eligibilityCriteria: r.eligibilityCriteria,
         briefSummary: r.briefSummary,
+        registry: r.registry,
+        registryUrl: r.registryUrl,
         sites: [],
       };
       byId.set(r.nctId, g);

@@ -3,6 +3,7 @@ import { collection, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp
 import { useCallback, useEffect, useState } from 'react';
 import { db } from '../firebase';
 import type { GroupedTrial } from '../utils/groupTrials';
+import { trialDocId } from '../utils/registryDocs';
 
 /** Small denormalised snapshot — enough to render a saved-trial card even if the trial
  * later drops out of the live "currently recruiting" dataset. Keyed by NCT id, so saving
@@ -35,7 +36,7 @@ export function useFavorites(user: User | null) {
   const toggleFavorite = useCallback(
     (trial: GroupedTrial) => {
       if (!db || !user) return;
-      const ref = doc(db, 'users', user.uid, 'favorites', trial.nctId);
+      const ref = doc(db, 'users', user.uid, 'favorites', trialDocId(trial.nctId));
       if (favorites.some((f) => f.nctId === trial.nctId)) {
         deleteDoc(ref).catch((err) => console.warn('[TrialWiz] failed to remove favorite:', err));
       } else {

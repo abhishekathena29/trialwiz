@@ -118,7 +118,9 @@ export function TrialDetail({ trial, onBack, isFavorite, onToggleFavorite }: Pro
   const otherSites = trial.sites.slice(1);
   const tel = telHref(primary?.contactPhone);
   const { inclusion, exclusion } = parseEligibility(trial.eligibilityCriteria);
-  const isRegistryTrial = /^NCT\d/.test(trial.nctId);
+  // Saved-trial snapshots and pre-CTRI cached rows carry no registryUrl; NCT ids are derivable.
+  const registryUrl = trial.registryUrl ?? (/^NCT\d/.test(trial.nctId) ? `https://clinicaltrials.gov/study/${trial.nctId}` : undefined);
+  const isRegistryTrial = Boolean(registryUrl);
 
   return (
     <div className="detail">
@@ -149,7 +151,7 @@ export function TrialDetail({ trial, onBack, isFavorite, onToggleFavorite }: Pro
       </div>
       <h1 className="dheadline">{trial.briefTitle}</h1>
       <div className="dsub">
-        Recruiting for {trial.cancerType.toLowerCase()}
+        {trial.registry === 'ctri' ? 'Registered on CTRI' : 'Recruiting'} for {trial.cancerType.toLowerCase()}
         {trial.metastatic === 'mentioned' ? ' — the record mentions advanced/metastatic disease' : ''}.
       </div>
 
@@ -243,11 +245,11 @@ export function TrialDetail({ trial, onBack, isFavorite, onToggleFavorite }: Pro
           </a>
         )}
         {isRegistryTrial ? (
-          <a className="btn" href={`https://clinicaltrials.gov/study/${trial.nctId}`} target="_blank" rel="noopener">
+          <a className="btn" href={registryUrl} target="_blank" rel="noopener">
             Registry record
           </a>
         ) : (
-          <span className="pill" title="Added directly by a hospital's trial coordinator, not from ClinicalTrials.gov">
+          <span className="pill" title="Added directly by a hospital's trial coordinator, not from a public registry">
             Hospital-submitted
           </span>
         )}

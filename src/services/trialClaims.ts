@@ -10,6 +10,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { TrialClaim } from '../types';
+import { trialDocId } from '../utils/registryDocs';
 
 export const CLAIMS_COLLECTION = 'trialClaims';
 
@@ -26,7 +27,7 @@ export function makeClaimId(nctId: string, facility: string, city?: string): str
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '_')
     .slice(0, 60);
-  return `${nctId}__${cleanFac}`;
+  return `${trialDocId(nctId)}__${cleanFac}`;
 }
 
 const norm = (v?: string) => (v ?? '').trim().toLowerCase();

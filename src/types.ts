@@ -34,6 +34,33 @@ export interface TrialSite {
   startDate?: string;
   /** Populated client-side once a location/radius scope is active. */
   distanceKm?: number | null;
+  /** Which public registry the record came from. Absent on hospital-submitted trials. */
+  registry?: 'ctgov' | 'ctri';
+  /** Link to the registry record (CTRI ids aren't URL-derivable like NCT ids are). */
+  registryUrl?: string;
+}
+
+/** One study at `registryTrials/{docId}`, written by `scripts/seed-registry.ts`. Study-level
+ * fields are stored once and per-site fields in `sites`, so a multi-site trial is one doc
+ * read rather than one per site; `expandRegistryTrial` turns it back into `TrialSite` rows. */
+export interface RegistryTrialDoc
+  extends Omit<TrialSite, 'key' | 'facility' | 'city' | 'state' | 'lat' | 'lon' | 'locationStatus' | 'contactName' | 'contactPhone' | 'contactEmail' | 'principalInvestigatorPhone' | 'distanceKm'> {
+  registry: 'ctgov' | 'ctri';
+  sites: Array<
+    Pick<TrialSite, 'key' | 'facility' | 'city' | 'state' | 'lat' | 'lon' | 'locationStatus' | 'contactName' | 'contactPhone' | 'contactEmail'>
+  >;
+  /** CTRI-only context that has no `TrialSite` equivalent. */
+  ctri?: {
+    scientificTitle?: string;
+    category?: string;
+    primarySponsor?: string;
+    registeredDate?: string;
+    multinational?: boolean;
+    alsoOnCtgov?: string;
+  };
+  /** Set on a ClinicalTrials.gov study that is also registered on CTRI. */
+  ctriNumber?: string;
+  syncedAt: string;
 }
 
 export type CancerCategory = 'solid' | 'blood' | 'pediatric';

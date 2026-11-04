@@ -24,3 +24,5 @@ dist-ssr
 *.sw?
 
 .env
+data/registry-preview.json
+*-firebase-adminsdk-*.json
