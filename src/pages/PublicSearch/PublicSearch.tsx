@@ -308,9 +308,14 @@ export function PublicSearch() {
             {/* One login for every account type (individual, doctor, PI, coordinator, admin). Signed-in
                 users never see it: providers get their dashboard, everyone else their account. */}
             {!user && !authLoading && (
-              <Link className="accountpill" to="/login" style={{ textDecoration: 'none' }}>
-                Log in
-              </Link>
+              <>
+                <Link className="navlink" to="/login?mode=signup">
+                  Sign up
+                </Link>
+                <Link className="accountpill" to="/login" style={{ textDecoration: 'none' }}>
+                  Log in
+                </Link>
+              </>
             )}
             {(profile?.role === 'doctor' || profile?.role === 'coordinator') && (
               <Link className="navlink" to="/portal">
