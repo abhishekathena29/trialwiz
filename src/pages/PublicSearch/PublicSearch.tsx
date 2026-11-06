@@ -305,9 +305,10 @@ export function PublicSearch() {
             <p>Recruiting cancer trials in India — plain language, near your patient</p>
           </div>
           <div className="headnav">
-            {/* Signed-in users never see login options: providers get their dashboard, everyone else their account. */}
+            {/* One login for every account type (individual, doctor, PI, coordinator, admin). Signed-in
+                users never see it: providers get their dashboard, everyone else their account. */}
             {!user && !authLoading && (
-              <Link className="navlink" to="/login">
+              <Link className="accountpill" to="/login" style={{ textDecoration: 'none' }}>
                 Log in
               </Link>
             )}
@@ -321,9 +322,11 @@ export function PublicSearch() {
                 Admin
               </Link>
             )}
-            <button className="accountpill" onClick={() => changeSeg('saved')} title={user ? user.email ?? '' : 'Sign in to save trials'}>
-              {user ? user.email : 'Sign in'}
-            </button>
+            {user && (
+              <button className="accountpill" onClick={() => changeSeg('saved')} title="Your saved trials">
+                {user.email}
+              </button>
+            )}
             <span className="modebadge on">live API</span>
           </div>
         </div>

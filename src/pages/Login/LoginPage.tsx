@@ -129,7 +129,7 @@ export function LoginPage() {
   if (!firebaseConfigured || !auth) {
     return (
       <div className="tw-admin">
-        <PortalHeader title="TrialWiz · Sign in" subtitle="One login for individuals, doctors, Principal Investigators and trial coordinators" />
+        <PortalHeader title="TrialWiz · Log in" subtitle="One login for individuals, doctors, Principal Investigators and trial coordinators" />
         <div className="login-wrap">
           <div className="setup-note">
             <b>Firebase isn't configured yet.</b> Sign-in needs Firebase Auth + Firestore — see <code>README.md</code>.
@@ -144,7 +144,7 @@ export function LoginPage() {
   if (!authLoading && user && !busy) {
     return (
       <div className="tw-admin">
-        <PortalHeader title="TrialWiz · Sign in" subtitle="One login for individuals, doctors, Principal Investigators and trial coordinators" />
+        <PortalHeader title="TrialWiz · Log in" subtitle="One login for individuals, doctors, Principal Investigators and trial coordinators" />
         <div className="login-wrap">
           <div className="login-card">
             <h1>You're signed in</h1>
@@ -231,10 +231,10 @@ export function LoginPage() {
 
   return (
     <div className="tw-admin">
-      <PortalHeader title="TrialWiz · Sign in" subtitle="One login for individuals, doctors, Principal Investigators and trial coordinators" />
+      <PortalHeader title="TrialWiz · Log in" subtitle="One login for individuals, doctors, Principal Investigators and trial coordinators" />
       <div className="login-wrap portal-auth-wrap">
         <div className="login-card">
-          <h1>{isSignup ? 'Create an account' : 'Sign in to TrialWiz'}</h1>
+          <h1>{isSignup ? 'Create an account' : 'Log in to TrialWiz'}</h1>
           <p>
             {isSignup
               ? 'Choose who you are — this sets up the right kind of account.'
@@ -411,7 +411,7 @@ export function LoginPage() {
               </>
             )}
             <button className="go" type="submit" disabled={!canSubmit}>
-              {busy ? 'Please wait…' : mode === 'signup' ? 'Create account' : 'Sign in'}
+              {busy ? 'Please wait…' : mode === 'signup' ? 'Create account' : 'Log in'}
             </button>
           </form>
 
@@ -425,7 +425,7 @@ export function LoginPage() {
                 setConfirmPassword('');
               }}
             >
-              {mode === 'signup' ? 'Already have an account? Sign in' : 'New here? Create an account'}
+              {mode === 'signup' ? 'Already have an account? Log in' : 'New here? Create an account'}
             </button>
           </p>
           {role === 'pi' && mode === 'signup' && (

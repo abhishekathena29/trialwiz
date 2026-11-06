@@ -42,10 +42,10 @@ export function SavedTrials({ user, authLoading, favorites, rows, onOpenDetail, 
           <h2>Saved trials</h2>
         </div>
         <div className="authcard">
-          <h2>Sign in to save trials</h2>
+          <h2>Log in to save trials</h2>
           <p className="authsub">Optional — no account is needed to search or browse.</p>
-          <Link className="go" to="/login?role=individual" style={{ display: 'block', textAlign: 'center', textDecoration: 'none' }}>
-            Sign in or create an account
+          <Link className="go" to="/login" style={{ display: 'block', textAlign: 'center', textDecoration: 'none' }}>
+            Log in or create an account
           </Link>
         </div>
       </div>

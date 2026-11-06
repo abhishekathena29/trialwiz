@@ -66,7 +66,7 @@ export function PortalApp() {
 
   if (!firebaseConfigured) return <SetupNotice />;
   if (authLoading) return <Loading />;
-  if (!user) return <Navigate to="/login?role=pi" replace />;
+  if (!user) return <Navigate to="/login" replace />;
   if (profileLoading) return <Loading />;
   // Public Trial Finder and admin accounts also have a users/ profile, but aren't providers.
   if (!profile || profile.role === 'user' || profile.role === 'admin') return <NotRegistered email={user.email} />;
