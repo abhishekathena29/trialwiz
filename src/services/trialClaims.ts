@@ -9,10 +9,12 @@ import {
   where,
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import type { TrialClaim } from '../types';
+import type { ClaimPrivateContact, TrialClaim } from '../types';
 import { trialDocId } from '../utils/registryDocs';
 
 export const CLAIMS_COLLECTION = 'trialClaims';
+/** Owner-only store for claim contact details the PI chose to keep personal (not public). */
+export const CLAIM_PRIVATE_COLLECTION = 'claimPrivateContacts';
 
 function requireDb() {
   if (!db) throw new Error('Firebase is not configured — see README.md.');
@@ -68,7 +70,52 @@ export async function claimTrial(
 
 export async function unclaimTrial(claimId: string): Promise<void> {
   const firestore = requireDb();
+  // Personal contact first: its rule checks the caller owns it, not the claim.
+  await deleteDoc(doc(firestore, CLAIM_PRIVATE_COLLECTION, claimId)).catch(() => {});
   await deleteDoc(doc(firestore, CLAIMS_COLLECTION, claimId));
+}
+
+/** Stores (or clears) the personal — non-public — phone/email for a claim. Pass empty strings
+ * for fields that are public; when both are empty the private doc is removed. */
+export async function savePrivateContact(
+  claimId: string,
+  ownerUid: string,
+  contactPhone: string,
+  contactEmail: string,
+): Promise<void> {
+  const firestore = requireDb();
+  const ref = doc(firestore, CLAIM_PRIVATE_COLLECTION, claimId);
+  if (!contactPhone && !contactEmail) {
+    await deleteDoc(ref).catch(() => {});
+    return;
+  }
+  await setDoc(ref, {
+    claimId,
+    ownerUid,
+    contactPhone,
+    contactEmail,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/** The signed-in user's own personal claim contacts — nobody else (except admins) can read them. */
+export function subscribeMyPrivateContacts(
+  uid: string,
+  onChange: (contacts: ClaimPrivateContact[]) => void,
+): () => void {
+  if (!db) {
+    onChange([]);
+    return () => {};
+  }
+  const q = query(collection(db, CLAIM_PRIVATE_COLLECTION), where('ownerUid', '==', uid));
+  return onSnapshot(
+    q,
+    (snap) => onChange(snap.docs.map((d) => d.data() as ClaimPrivateContact)),
+    (err) => {
+      console.warn('[TrialWiz] private contacts subscription failed:', err);
+      onChange([]);
+    },
+  );
 }
 
 /** Subscribe to all verified trial claims for public search and admin oversight. */

@@ -75,6 +75,61 @@ service cloud.firestore {
       allow delete: if (request.auth != null && resource.data.claimedByUid == request.auth.uid) || isAdmin();
     }
 
+    // Owner-only store for a claim's contact phone/email that the PI chose to keep personal
+    // rather than publish. Never readable by the public app or other providers.
+    match /claimPrivateContacts/{claimId} {
+      allow read, delete: if isAdmin() || (request.auth != null && resource.data.ownerUid == request.auth.uid);
+      allow create, update: if isAdmin() || (
+        request.auth != null &&
+        request.resource.data.ownerUid == request.auth.uid &&
+        request.resource.data.claimId == claimId &&
+        (resource == null || resource.data.ownerUid == request.auth.uid) &&
+        get(/databases/$(database)/documents/trialClaims/$(claimId)).data.claimedByUid == request.auth.uid);
+    }
+
+    // Account phone numbers — kept out of users/{uid} because PI profiles are publicly readable.
+    match /userContacts/{uid} {
+      allow read: if isAdmin() || (request.auth != null && request.auth.uid == uid);
+      allow write: if isAdmin() || (request.auth != null && request.auth.uid == uid &&
+        (request.resource == null || request.resource.data.uid == uid));
+    }
+
+    // Closed-trial repository, one doc per claimed site (doc id == claim id). Publicly readable so
+    // every active list can hide closed sites. Only an approved Principal Investigator may close a
+    // trial — and only one claimed by them, by a coordinator they approved, or at their hospital.
+    match /closedTrials/{claimId} {
+      allow read: if true;
+      allow create: if isApprovedDoctor() &&
+        request.resource.data.closedByUid == request.auth.uid &&
+        request.resource.data.claimId == claimId &&
+        piMayCloseClaim(claimId);
+      allow update: if false;
+      allow delete: if isAdmin() || (isApprovedDoctor() && resource.data.closedByUid == request.auth.uid);
+    }
+
+    // Append-only audit trail (trial closures/reopenings, role changes). Anyone signed in can add
+    // an entry in their own name; only admins can read; nobody can edit or delete.
+    match /auditLog/{entryId} {
+      allow read: if isAdmin();
+      allow create: if request.auth != null &&
+        request.resource.data.actorUid == request.auth.uid &&
+        request.resource.data.action in ['trial_closed', 'trial_reopened', 'role_changed'] &&
+        (request.resource.data.action != 'role_changed' || isAdmin()) &&
+        request.resource.data.at == request.time;
+      allow update, delete: if false;
+    }
+
+    function piMayCloseClaim(claimId) {
+      let claimPath = /databases/$(database)/documents/trialClaims/$(claimId);
+      let claim = get(claimPath).data;
+      let me = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return exists(claimPath) && (
+        claim.claimedByUid == request.auth.uid ||
+        (claim.hospitalName is string && me.facility is string &&
+          claim.hospitalName.lower() == me.facility.lower()) ||
+        get(/databases/$(database)/documents/users/$(claim.claimedByUid)).data.doctorUid == request.auth.uid);
+    }
+
     function isAdmin() {
       return request.auth != null &&
         exists(/databases/$(database)/documents/admins/$(request.auth.uid));

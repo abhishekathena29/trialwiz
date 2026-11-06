@@ -1,11 +1,32 @@
 import { useState } from 'react';
-import { claimMatchesSite, claimTrial, makeClaimId, unclaimTrial } from '../../services/trialClaims';
-import type { TrialClaim, UserProfile } from '../../types';
+import { claimMatchesSite, claimTrial, makeClaimId, savePrivateContact, unclaimTrial } from '../../services/trialClaims';
+import type { ClaimPrivateContact, ContactVisibility, TrialClaim, UserProfile } from '../../types';
 import type { GroupedTrial, TrialLocation } from '../../utils/groupTrials';
 import './Portal.css';
 
 function siteLabel(site: TrialLocation): string {
   return [site.facility, site.city, site.state].filter(Boolean).join(', ');
+}
+
+function VisibilityToggle({
+  value,
+  onChange,
+  label,
+}: {
+  value: ContactVisibility;
+  onChange: (v: ContactVisibility) => void;
+  label: string;
+}) {
+  return (
+    <div className="vis-toggle" role="radiogroup" aria-label={`${label} visibility`}>
+      <button type="button" role="radio" aria-checked={value === 'public'} className={value === 'public' ? 'on' : ''} onClick={() => onChange('public')}>
+        Public
+      </button>
+      <button type="button" role="radio" aria-checked={value === 'personal'} className={value === 'personal' ? 'on' : ''} onClick={() => onChange('personal')}>
+        Personal
+      </button>
+    </div>
+  );
 }
 
 interface Props {
@@ -18,6 +39,10 @@ interface Props {
   /** Site to preselect for a new claim (usually the one matching the PI's hospital). */
   defaultSiteKey?: string;
   savedPhones?: string[];
+  /** The claimant's own public phone from their account — preselected for new claims. */
+  defaultPhone?: string;
+  /** The claimant's own personal (non-public) phone/email for this claim, if any. */
+  privateContact?: ClaimPrivateContact;
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
@@ -30,6 +55,8 @@ export function ClaimTrialModal({
   allClaims,
   defaultSiteKey,
   savedPhones = [],
+  defaultPhone = '',
+  privateContact,
   isOpen,
   onClose,
   onSuccess,
@@ -49,26 +76,30 @@ export function ClaimTrialModal({
   const site = trial.sites.find((s) => s.key === siteKey);
   const hospitalName = (profile.facility ?? '').trim();
 
+  // Personal values aren't on the public claim doc — they come from the owner-only private doc.
+  const existingPhone = existingClaim?.contactPhone || privateContact?.contactPhone || '';
+  const existingEmail = existingClaim?.contactEmail || privateContact?.contactEmail || '';
+
   // Candidate phone options: registry phone, saved phones from profile or other claims
   const initialAvailablePhones = Array.from(
     new Set(
-      [existingClaim?.contactPhone, site?.contactPhone, ...savedPhones]
+      [existingPhone, defaultPhone, site?.contactPhone, ...savedPhones]
         .filter(Boolean)
         .map((p) => String(p).trim()),
     ),
   );
 
   const [selectedPhoneOption, setSelectedPhoneOption] = useState<string>(
-    existingClaim?.contactPhone || initialAvailablePhones[0] || 'custom',
+    existingPhone || initialAvailablePhones[0] || 'custom',
   );
-  const [customPhone, setCustomPhone] = useState<string>(
-    existingClaim?.contactPhone || (!initialAvailablePhones.length ? '' : ''),
-  );
+  const [customPhone, setCustomPhone] = useState<string>(existingPhone);
+  const [phoneVisibility, setPhoneVisibility] = useState<ContactVisibility>(existingClaim?.phoneVisibility ?? 'public');
+  const [emailVisibility, setEmailVisibility] = useState<ContactVisibility>(existingClaim?.emailVisibility ?? 'public');
   const [contactName, setContactName] = useState<string>(
     existingClaim?.contactName || profile.name || '',
   );
   const [contactEmail, setContactEmail] = useState<string>(
-    existingClaim?.contactEmail || profile.email || '',
+    existingEmail || profile.email || '',
   );
   const [department, setDepartment] = useState<string>(
     existingClaim?.department || 'Oncology Clinical Trials Unit',
@@ -119,13 +150,23 @@ export function ClaimTrialModal({
         claimedByName: profile.name,
         claimedByRole: profile.role === 'doctor' ? 'doctor' : 'coordinator',
         claimedByEmail: profile.email,
-        contactPhone: resolvedPhone,
-        contactEmail: contactEmail.trim(),
+        // Personal fields are left blank on the public doc; public pages then fall back to the
+        // registry's own site contact.
+        contactPhone: phoneVisibility === 'public' ? resolvedPhone : '',
+        contactEmail: emailVisibility === 'public' ? contactEmail.trim() : '',
         contactName: contactName.trim(),
+        phoneVisibility,
+        emailVisibility,
         department: department.trim() || undefined,
         notes: notes.trim() || undefined,
         confirmedPrincipalInvestigator: confirmed,
       });
+      await savePrivateContact(
+        claimId,
+        profile.uid,
+        phoneVisibility === 'personal' ? resolvedPhone : '',
+        emailVisibility === 'personal' ? contactEmail.trim() : '',
+      );
       onSuccess?.();
       onClose();
     } catch (e) {
@@ -209,7 +250,7 @@ export function ClaimTrialModal({
                 onChange={(e) => {
                   const next = trial.sites.find((s) => s.key === e.target.value);
                   setSiteKey(e.target.value);
-                  setSelectedPhoneOption(next?.contactPhone?.trim() || savedPhones[0] || 'custom');
+                  setSelectedPhoneOption(defaultPhone || next?.contactPhone?.trim() || savedPhones[0] || 'custom');
                   setCustomPhone('');
                 }}
                 className="claim-select"
@@ -277,7 +318,12 @@ export function ClaimTrialModal({
             >
               {initialAvailablePhones.map((ph) => (
                 <option key={ph} value={ph}>
-                  📞 {ph} {site?.contactPhone === ph ? '(Registry default)' : '(Saved site number)'}
+                  📞 {ph}{' '}
+                  {ph === defaultPhone
+                    ? '(Your public number)'
+                    : site?.contactPhone === ph
+                      ? '(Registry default)'
+                      : '(Saved number)'}
                 </option>
               ))}
               <option value="custom">➕ Add or enter a new contact phone number...</option>
@@ -294,6 +340,12 @@ export function ClaimTrialModal({
                 required
               />
             )}
+            <VisibilityToggle value={phoneVisibility} onChange={setPhoneVisibility} label="Phone" />
+            <span className="field-hint" style={{ marginTop: 4 }}>
+              {phoneVisibility === 'public'
+                ? 'Shown to patients and doctors on the public Trial Finder.'
+                : 'Personal — saved for you only. The public listing keeps showing the registry contact.'}
+            </span>
           </div>
 
           <div className="form-row">
@@ -323,6 +375,7 @@ export function ClaimTrialModal({
                 className="claim-input"
                 required
               />
+              <VisibilityToggle value={emailVisibility} onChange={setEmailVisibility} label="Email" />
             </div>
           </div>
 

@@ -12,12 +12,30 @@ import {
 } from '../../analytics/aggregate';
 import { auth } from '../../firebase';
 import { useTrialCatalogue } from '../../hooks/useTrialCatalogue';
-import { approveDoctor, rejectDoctor, subscribeDoctors } from '../../services/profiles';
+import { useClosedTrials } from '../../hooks/useClosedTrials';
+import { subscribeAuditLog } from '../../services/audit';
+import { reopenTrial } from '../../services/closedTrials';
+import {
+  approveDoctor,
+  changeCoordinatorToPi,
+  rejectDoctor,
+  subscribeAllUserContacts,
+  subscribeCoordinators,
+  subscribeDoctors,
+} from '../../services/profiles';
 import { subscribeAllClaims } from '../../services/trialClaims';
-import type { TrialClaim, UserProfile } from '../../types';
+import type { AuditEntry, ClosedTrial, TrialClaim, UserContact, UserProfile } from '../../types';
+import { formatTimestamp } from '../../utils/timestamps';
 import { countUniqueTrials, tallyByCancerType, tallyByCentre } from '../../utils/trialStats';
 import { AdminHeader } from './AdminHeader';
-import { CreateDoctorModal } from './CreateDoctorModal';
+import { ChangeRoleModal } from './ChangeRoleModal';
+import { CreateAccountModal } from './CreateAccountModal';
+
+const AUDIT_LABEL: Record<string, string> = {
+  trial_closed: 'Trial closed',
+  trial_reopened: 'Trial reopened',
+  role_changed: 'Role changed',
+};
 
 const PERIODS: Array<[number, string]> = [
   [30, 'Last 30 days'],
@@ -130,17 +148,68 @@ export function AdminDashboard({ user }: { user: User }) {
   const [usageRecords, setUsageRecords] = useState<UsageRecord[] | null>(null);
   const [error, setError] = useState('');
 
-  // Admin Tab: 'demand' | 'catalogue' | 'doctors'
-  const [adminTab, setAdminTab] = useState<'demand' | 'catalogue' | 'doctors'>('demand');
+  const [adminTab, setAdminTab] = useState<'demand' | 'catalogue' | 'doctors' | 'closed'>('demand');
   const [doctors, setDoctors] = useState<UserProfile[]>([]);
   const [claims, setClaims] = useState<TrialClaim[]>([]);
   const [createDoctorOpen, setCreateDoctorOpen] = useState(false);
   const [busyDoctorUid, setBusyDoctorUid] = useState<string | null>(null);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
+  const [coordinators, setCoordinators] = useState<UserProfile[]>([]);
+  const [contacts, setContacts] = useState<Map<string, UserContact>>(new Map());
+  const [roleChangeTarget, setRoleChangeTarget] = useState<UserProfile | null>(null);
+  const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
+  const closedTrials = useClosedTrials();
+  const adminActor = useMemo(() => ({ uid: user.uid, email: user.email ?? '', name: 'TrialWiz admin' }), [user]);
 
   useEffect(() => {
     return subscribeDoctors(setDoctors);
   }, []);
+
+  useEffect(() => subscribeCoordinators(setCoordinators), []);
+  useEffect(() => subscribeAllUserContacts(setContacts), []);
+  useEffect(() => subscribeAuditLog(setAuditEntries), []);
+
+  /** Public + private phones; public is only collected for PIs and doctors. */
+  function phoneOf(uid: string) {
+    const c = contacts.get(uid);
+    if (!c?.phone && !c?.publicPhone) return '—';
+    return (
+      <>
+        {c.publicPhone && <div>{c.publicPhone} <span className="sup">public</span></div>}
+        {c.phone && <div>{c.phone} <span className="sup">private</span></div>}
+      </>
+    );
+  }
+
+  function flash(message: string) {
+    setActionFeedback(message);
+    setTimeout(() => setActionFeedback(null), 6000);
+  }
+
+  async function handlePromoteCoordinator(c: UserProfile) {
+    if (!window.confirm(`Make ${c.name} (${c.email}) a Principal Investigator? They will be approved immediately.`)) return;
+    setBusyDoctorUid(c.uid);
+    try {
+      await changeCoordinatorToPi(adminActor, c);
+      flash(`${c.name} is now a verified Principal Investigator.`);
+    } catch (e) {
+      console.error(e);
+      setError(e instanceof Error ? e.message : 'Failed to change role.');
+    } finally {
+      setBusyDoctorUid(null);
+    }
+  }
+
+  async function handleReopen(c: ClosedTrial) {
+    if (!window.confirm(`Reopen ${c.nctId} at ${c.facility}? It will appear in the active trial lists again.`)) return;
+    try {
+      await reopenTrial(c, adminActor);
+      flash(`Reopened ${c.nctId} at ${c.facility}.`);
+    } catch (e) {
+      console.error(e);
+      setError(e instanceof Error ? e.message : 'Failed to reopen trial.');
+    }
+  }
 
   useEffect(() => {
     return subscribeAllClaims(setClaims);
@@ -314,6 +383,12 @@ export function AdminDashboard({ user }: { user: User }) {
             {pendingDoctors.length > 0 && (
               <span className="tab-pending-badge">{pendingDoctors.length}</span>
             )}
+          </button>
+          <button
+            className={`portal-tab ${adminTab === 'closed' ? 'active' : ''}`}
+            onClick={() => setAdminTab('closed')}
+          >
+            🗄 Closed Trials & Audit ({closedTrials.length})
           </button>
         </div>
 
@@ -540,7 +615,7 @@ export function AdminDashboard({ user }: { user: User }) {
                   Principal Investigator & Doctor Accounts
                 </h2>
                 <p className="sup" style={{ margin: '4px 0 0' }}>
-                  Manage hospital affiliations, approve self-registered doctors, and directly create new investigator accounts
+                  Approve self-registered PIs, change roles, and create pre-approved accounts for any role
                 </p>
               </div>
               <button
@@ -548,7 +623,7 @@ export function AdminDashboard({ user }: { user: User }) {
                 onClick={() => setCreateDoctorOpen(true)}
                 style={{ marginLeft: 'auto' }}
               >
-                ➕ Create Principal Investigator
+                ➕ Create Account
               </button>
             </div>
 
@@ -596,6 +671,7 @@ export function AdminDashboard({ user }: { user: User }) {
                         <th>Hospital / Institution</th>
                         <th>Location</th>
                         <th>Email</th>
+                        <th>Phone</th>
                         <th style={{ textAlign: 'right' }}>Actions</th>
                       </tr>
                     </thead>
@@ -606,6 +682,7 @@ export function AdminDashboard({ user }: { user: User }) {
                           <td>{d.facility || '—'}</td>
                           <td>{[d.city, d.state].filter(Boolean).join(', ') || '—'}</td>
                           <td><a href={`mailto:${d.email}`}>{d.email}</a></td>
+                          <td>{phoneOf(d.uid)}</td>
                           <td style={{ textAlign: 'right' }}>
                             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                               <button
@@ -641,7 +718,7 @@ export function AdminDashboard({ user }: { user: User }) {
             </div>
             <div className="card full">
               {approvedDoctors.length === 0 ? (
-                <div className="sup">No approved doctor accounts yet. Use the "+ Create Principal Investigator" button above to add one.</div>
+                <div className="sup">No approved doctor accounts yet. Use the "+ Create Account" button above to add one.</div>
               ) : (
                 <div className="tablewrap">
                   <table>
@@ -651,6 +728,7 @@ export function AdminDashboard({ user }: { user: User }) {
                         <th>Hospital / Institution</th>
                         <th>Location</th>
                         <th>Email</th>
+                        <th>Phone</th>
                         <th>Status</th>
                         <th style={{ textAlign: 'right' }}>Management</th>
                       </tr>
@@ -662,16 +740,28 @@ export function AdminDashboard({ user }: { user: User }) {
                           <td>{d.facility || '—'}</td>
                           <td>{[d.city, d.state].filter(Boolean).join(', ') || '—'}</td>
                           <td>{d.email}</td>
+                          <td>{phoneOf(d.uid)}</td>
                           <td><span className="pill approved">Approved</span></td>
                           <td style={{ textAlign: 'right' }}>
-                            <button
-                              className="btn"
-                              style={{ padding: '4px 10px', fontSize: 11.5 }}
-                              disabled={busyDoctorUid === d.uid}
-                              onClick={() => handleRejectDoctor(d.uid, d.name)}
-                            >
-                              Revoke
-                            </button>
+                            <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                              <button
+                                className="btn"
+                                style={{ padding: '4px 10px', fontSize: 11.5 }}
+                                disabled={busyDoctorUid === d.uid}
+                                onClick={() => setRoleChangeTarget(d)}
+                                title="Change this account's role to Trial Coordinator"
+                              >
+                                Change to Coordinator
+                              </button>
+                              <button
+                                className="btn"
+                                style={{ padding: '4px 10px', fontSize: 11.5 }}
+                                disabled={busyDoctorUid === d.uid}
+                                onClick={() => handleRejectDoctor(d.uid, d.name)}
+                              >
+                                Revoke
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -722,18 +812,177 @@ export function AdminDashboard({ user }: { user: User }) {
                 </div>
               </>
             )}
+
+            {/* TRIAL COORDINATORS */}
+            <div className="sechead2">
+              <h2>Trial Coordinators ({coordinators.length})</h2>
+              <span className="sup">
+                Coordinators are approved by their Principal Investigator. Admins can promote a coordinator to PI.
+              </span>
+            </div>
+            <div className="card full">
+              {coordinators.length === 0 ? (
+                <div className="sup">No trial coordinator accounts yet.</div>
+              ) : (
+                <div className="tablewrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Principal Investigator</th>
+                        <th>Hospital</th>
+                        <th>Email</th>
+                        <th>Phone</th>
+                        <th>Status</th>
+                        <th style={{ textAlign: 'right' }}>Management</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {coordinators.map((c) => (
+                        <tr key={c.uid}>
+                          <td><b>{c.name}</b></td>
+                          <td>{c.requestedDoctorName || c.requestedDoctorEmail || '—'}</td>
+                          <td>{c.facility || '—'}</td>
+                          <td>{c.email}</td>
+                          <td>{phoneOf(c.uid)}</td>
+                          <td>
+                            <span className={`pill ${c.status ?? 'pending'}`}>{c.status ?? 'pending'}</span>
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <button
+                              className="btn"
+                              style={{ padding: '4px 10px', fontSize: 11.5 }}
+                              disabled={busyDoctorUid === c.uid}
+                              onClick={() => handlePromoteCoordinator(c)}
+                            >
+                              Make Principal Investigator
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4: CLOSED TRIAL REPOSITORY + AUDIT TRAIL */}
+        {adminTab === 'closed' && (
+          <div>
+            {actionFeedback && (
+              <div className="note" style={{ background: '#e3f7e9', color: '#16794b', borderColor: '#a3e6b7' }}>
+                ✓ {actionFeedback}
+              </div>
+            )}
+            <div className="sechead2" style={{ marginTop: 0 }}>
+              <h2>Closed trial repository ({closedTrials.length})</h2>
+              <span className="sup">
+                Trial sites a Principal Investigator marked closed — hidden from every active list
+              </span>
+            </div>
+            <div className="card full">
+              {closedTrials.length === 0 ? (
+                <div className="sup">No trials have been closed yet.</div>
+              ) : (
+                <div className="tablewrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Trial</th>
+                        <th>Site</th>
+                        <th>Closed by</th>
+                        <th>Closed on</th>
+                        <th>Reason</th>
+                        <th style={{ textAlign: 'right' }}>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {closedTrials.map((c) => (
+                        <tr key={c.id}>
+                          <td>
+                            <b>{c.nctId}</b>
+                            {c.briefTitle && <div className="sup">{c.briefTitle}</div>}
+                          </td>
+                          <td>{[c.facility, c.city].filter(Boolean).join(', ')}</td>
+                          <td>
+                            {c.closedByName}
+                            <div className="sup">{c.closedByEmail}</div>
+                          </td>
+                          <td>{formatTimestamp(c.closedAt)}</td>
+                          <td>{c.reason || '—'}</td>
+                          <td style={{ textAlign: 'right' }}>
+                            <button className="btn" style={{ padding: '4px 10px', fontSize: 11.5 }} onClick={() => handleReopen(c)}>
+                              Reopen
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className="sechead2">
+              <h2>Audit trail</h2>
+              <span className="sup">Trial closures, reopenings and role changes — append-only, newest first</span>
+            </div>
+            <div className="card full">
+              {auditEntries.length === 0 ? (
+                <div className="sup">No audited actions yet.</div>
+              ) : (
+                <div className="tablewrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>When</th>
+                        <th>Action</th>
+                        <th>By</th>
+                        <th>Subject</th>
+                        <th>Details</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {auditEntries.map((a) => (
+                        <tr key={a.id}>
+                          <td>{formatTimestamp(a.at)}</td>
+                          <td>{AUDIT_LABEL[a.action] ?? a.action}</td>
+                          <td>{a.actorName ? `${a.actorName} · ${a.actorEmail}` : a.actorEmail}</td>
+                          <td>{a.target}</td>
+                          <td>{a.details || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
 
+      {roleChangeTarget && (
+        <ChangeRoleModal
+          admin={adminActor}
+          pi={roleChangeTarget}
+          approvedPis={approvedDoctors}
+          linkedCoordinatorCount={
+            coordinators.filter(
+              (c) => (c.requestedDoctorEmail ?? '').toLowerCase() === roleChangeTarget.email.toLowerCase(),
+            ).length
+          }
+          onClose={() => setRoleChangeTarget(null)}
+          onChanged={flash}
+        />
+      )}
+
       {createDoctorOpen && (
-        <CreateDoctorModal
-          isOpen={createDoctorOpen}
+        <CreateAccountModal
+          approvedPis={approvedDoctors}
           onClose={() => setCreateDoctorOpen(false)}
-          onCreated={(createdEmail) => {
-            setActionFeedback(`Principal Investigator account created for ${createdEmail}.`);
-            setTimeout(() => setActionFeedback(null), 6000);
-          }}
+          onCreated={flash}
         />
       )}
     </div>

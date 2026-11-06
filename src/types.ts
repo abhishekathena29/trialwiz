@@ -92,6 +92,8 @@ export type UserRole = 'doctor' | 'coordinator';
 /** Every signed-in account gets a `users/{uid}` doc: public Trial Finder accounts are 'user',
  * owner dashboard accounts are 'admin', provider-portal accounts are a `UserRole`. */
 export type AccountRole = UserRole | 'user' | 'admin';
+/** Sub-type of a public (role 'user') account — chosen on the unified login page. */
+export type PublicUserType = 'individual' | 'doctor';
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 export type CoordinatorStatus = ApprovalStatus;
 
@@ -106,6 +108,8 @@ export interface UserProfile {
   lastLoginAt?: unknown;
   /** Firebase Auth provider of the first sign-in, e.g. "password". */
   signInProvider?: string;
+  /** Public Trial Finder accounts only: who the person said they are at sign-up. */
+  userType?: PublicUserType;
   /** Hospital / Institution name — used for doctors (Principal Investigators) and coordinators */
   facility?: string;
   city?: string;
@@ -136,14 +140,75 @@ export interface TrialClaim {
   claimedByName: string;
   claimedByRole: UserRole;
   claimedByEmail: string;
+  /** Public contact phone/email. Empty when the PI chose to keep that field personal — the
+   * personal value then lives in `claimPrivateContacts/{claimId}`, readable only by its owner. */
   contactPhone: string;
   contactEmail: string;
   contactName: string;
+  phoneVisibility?: ContactVisibility;
+  emailVisibility?: ContactVisibility;
   department?: string;
   notes?: string;
   confirmedPrincipalInvestigator: boolean;
   claimedAt: unknown;
   updatedAt: unknown;
+}
+
+/** Contact phone for an account, at `userContacts/{uid}` — kept out of `users/{uid}` because
+ * PI profiles are publicly readable. Readable only by the owner and admins. */
+export interface UserContact {
+  uid: string;
+  /** Private phone — only the account owner and admins ever see it. */
+  phone?: string;
+  /** PIs and doctors only: the number they want shown publicly — it's the default contact
+   * phone on trials a PI claims. */
+  publicPhone?: string;
+  updatedAt?: unknown;
+}
+
+export type ContactVisibility = 'public' | 'personal';
+
+/** Owner-only contact details for a claim, at `claimPrivateContacts/{claimId}`. */
+export interface ClaimPrivateContact {
+  claimId: string;
+  ownerUid: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  updatedAt: unknown;
+}
+
+/** A trial site a Principal Investigator has marked closed — the "repository". Stored at
+ * `closedTrials/{claimId}`; any catalogue row matching it is hidden from active lists. */
+export interface ClosedTrial {
+  id: string;
+  claimId: string;
+  nctId: string;
+  facility: string;
+  city?: string;
+  state?: string;
+  hospitalName?: string;
+  briefTitle?: string;
+  cancerType?: string;
+  reason?: string;
+  closedByUid: string;
+  closedByName: string;
+  closedByEmail: string;
+  closedAt: unknown;
+}
+
+export type AuditAction = 'trial_closed' | 'trial_reopened' | 'role_changed';
+
+/** Append-only audit trail at `auditLog/{id}` — readable by admins only. */
+export interface AuditEntry {
+  id: string;
+  action: AuditAction;
+  actorUid: string;
+  actorEmail: string;
+  actorName?: string;
+  /** Human-readable subject, e.g. an NCT id + site, or the user whose role changed. */
+  target: string;
+  details?: string;
+  at: unknown;
 }
 
 /** A doctor/coordinator-submitted trial — stored at `submittedTrials/{id}` in the exact

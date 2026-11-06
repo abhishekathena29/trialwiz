@@ -2,11 +2,11 @@ import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { recordSignIn } from '../../services/profiles';
 import { useEffect, useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import { auth, db, firebaseConfigured } from '../../firebase';
 import './Admin.css';
 import { AdminDashboard } from './AdminDashboard';
 import { AdminHeader } from './AdminHeader';
-import { AdminLogin } from './AdminLogin';
 
 type AuthState = 'checking' | 'signed-out' | 'not-admin' | 'admin';
 
@@ -83,7 +83,7 @@ export function AdminApp() {
       </div>
     );
   }
-  if (state === 'signed-out') return <AdminLogin />;
+  if (state === 'signed-out') return <Navigate to="/login" replace />;
   if (state === 'not-admin') {
     return (
       <div className="tw-admin">

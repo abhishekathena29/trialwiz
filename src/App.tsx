@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AdminApp } from './pages/Admin/AdminApp';
+import { LoginPage } from './pages/Login/LoginPage';
 import { PortalApp } from './pages/Portal/PortalApp';
 import { PublicSearch } from './pages/PublicSearch/PublicSearch';
 
@@ -8,6 +9,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<PublicSearch />} />
+        <Route path="/login" element={<LoginPage />} />
         <Route path="/admin" element={<AdminApp />} />
         <Route path="/portal" element={<PortalApp />} />
         <Route path="*" element={<Navigate to="/" replace />} />

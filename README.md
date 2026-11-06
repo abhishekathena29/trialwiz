@@ -3,6 +3,10 @@ A clinical trial finder for recruiting **cancer trials in India**, built on the 
 [ClinicalTrials.gov Data API (v2)](https://clinicaltrials.gov/data-api/api). Three apps in one
 codebase:
 
+- **`/login` — one login page for everyone.** Sign-in is just email + password; each account is
+  routed by its role: admins to `/admin`, PIs/coordinators to `/portal`, everyone else back to the
+  Trial Finder. The role (Individual, Doctor, Principal Investigator, Trial Coordinator) is only
+  chosen when creating an account. `/portal` and `/admin` send signed-out visitors here.
 - **`/` — public Trial Finder.** Browse recruiting cancer trials by cancer type or by centre, or
   search with facets (spread/metastatic, therapy line, biomarker). Location-aware (GPS or typed
   city + radius, or All India). No login.
@@ -47,6 +51,22 @@ codebase:
   are stored in Firestore in the exact same shape as a registry trial and merged in live via
   [`src/hooks/useTrialCatalogue.ts`](src/hooks/useTrialCatalogue.ts) — the public list, search,
   and the admin catalogue stats all read from this one combined, always-current dataset.
+- A Principal Investigator can **close** a claimed trial site (their own claim, one at their
+  hospital, or one by a coordinator they approved). The closure goes to the `closedTrials`
+  repository and the `auditLog`; `useTrialCatalogue` drops every matching row, so the site leaves
+  all active lists at once. The closing PI or an admin can reopen it. Coordinators can't close.
+- When claiming a trial, the phone and email can each be **Public** (shown on the Trial Finder)
+  or **Personal**. Personal values are never written to the publicly readable `trialClaims` doc —
+  they go to `claimPrivateContacts/{claimId}`, readable only by the owner and admins — and the
+  public listing falls back to the registry's own site contact.
+- Phone numbers are collected when an account is created. PIs and doctors give two: a **public**
+  phone (a PI's default contact number on the trials they claim) and a **private** one; other roles
+  give one private phone. They live in `userContacts/{uid}`, owner + admin only, because PI
+  profiles in `users/` are publicly readable for the coordinator sign-up lookup.
+- Admins can create an account of any role from the admin dashboard; it's approved immediately.
+  A new trial coordinator is linked to the PI the admin picks.
+- Admins can change a PI into a Trial Coordinator (choosing the supervising PI) or promote a
+  coordinator to PI from the Principal Investigator Accounts tab; both are audited.
 - Every public search is silently logged as one aggregate, de-identified event (cancer type,
   coarse location label, facets, result count — never a name, phone, email, or device id) to a
   Firestore collection the public app can only **write** to, never read. The admin dashboard
@@ -95,12 +115,15 @@ src/
   data/                       cancer-type taxonomy, city coordinates for the location picker
   hooks/useIndiaCancerTrials  fetch + localStorage cache for the ClinicalTrials.gov dataset
   hooks/useTrialCatalogue     merges the API dataset with live doctor/coordinator submissions
-  services/profiles.ts        doctor/coordinator profile + approval workflow (Firestore)
+  services/profiles.ts        doctor/coordinator profile + approval workflow, phones, role changes
+  services/closedTrials.ts    PI trial closure + closed-trial repository
+  services/audit.ts           append-only audit trail (closures, reopenings, role changes)
   services/trialSubmissions   coordinator trial submission, read/update/retire (Firestore)
   analytics/                  Firestore demand-log writer (public) + aggregator (admin)
   firebase.ts                 Firebase init, no-ops gracefully if env vars are unset
   pages/PublicSearch/         the public Trial Finder UI
-  pages/Portal/               doctor/coordinator sign-up, approval, and add-trial UI
+  pages/Login/                the single login/sign-up page for all roles
+  pages/Portal/               PI/coordinator dashboard: claims, closures, approvals, add-trial
   pages/Admin/                the Demand Intelligence dashboard + auth gate
 firestore.rules               public logging, admin-only reads, portal profiles/submissions
 ```

@@ -2,13 +2,22 @@ import { signOut, type User } from 'firebase/auth';
 import { useEffect, useMemo, useState } from 'react';
 import { CANCERS } from '../../data/cancerTaxonomy';
 import { auth } from '../../firebase';
+import { useClosedTrials } from '../../hooks/useClosedTrials';
 import { useTrialCatalogue } from '../../hooks/useTrialCatalogue';
-import { approveCoordinator, rejectCoordinator, subscribeCoordinatorsForDoctor } from '../../services/profiles';
-import { claimMatchesSite, subscribeAllClaims } from '../../services/trialClaims';
-import type { TrialClaim, UserProfile } from '../../types';
+import { reopenTrial } from '../../services/closedTrials';
+import {
+  approveCoordinator,
+  rejectCoordinator,
+  subscribeCoordinatorsForDoctor,
+  subscribeUserContact,
+} from '../../services/profiles';
+import { claimMatchesSite, subscribeAllClaims, subscribeMyPrivateContacts } from '../../services/trialClaims';
+import type { ClaimPrivateContact, ClosedTrial, TrialClaim, UserProfile } from '../../types';
+import { formatTimestamp } from '../../utils/timestamps';
 import { groupByNctId, type GroupedTrial, type TrialLocation } from '../../utils/groupTrials';
 import { AddTrialForm } from './AddTrialForm';
 import { ClaimTrialModal } from './ClaimTrialModal';
+import { CloseTrialModal } from './CloseTrialModal';
 import { MySubmittedTrials } from './MySubmittedTrials';
 import { PortalHeader } from './PortalHeader';
 import './Portal.css';
@@ -44,8 +53,19 @@ function RequestRow({
   );
 }
 
-/** Location + registered hospital + published contact details for one claim. */
-function ClaimDetails({ claim, isMine }: { claim: TrialClaim; isMine: boolean }) {
+/** Location + registered hospital + published contact details for one claim. Personal
+ * (non-public) phone/email only appear for the claim's owner, tagged as such. */
+function ClaimDetails({
+  claim,
+  isMine,
+  privateContact,
+}: {
+  claim: TrialClaim;
+  isMine: boolean;
+  privateContact?: ClaimPrivateContact;
+}) {
+  const personalPhone = isMine && claim.phoneVisibility === 'personal' ? privateContact?.contactPhone : undefined;
+  const personalEmail = isMine && claim.emailVisibility === 'personal' ? privateContact?.contactEmail : undefined;
   return (
     <div className="claim-status-box verified">
       <div className="claim-status-header">
@@ -73,9 +93,21 @@ function ClaimDetails({ claim, isMine }: { claim: TrialClaim; isMine: boolean })
             📞 Direct Phone: <a href={`tel:${claim.contactPhone}`}>{claim.contactPhone}</a>
           </span>
         )}
+        {personalPhone && (
+          <span>
+            📞 Phone: <a href={`tel:${personalPhone}`}>{personalPhone}</a>
+            <span className="personal-tag">Personal</span>
+          </span>
+        )}
         {claim.contactEmail && (
           <span>
             ✉️ Email: <a href={`mailto:${claim.contactEmail}`}>{claim.contactEmail}</a>
+          </span>
+        )}
+        {personalEmail && (
+          <span>
+            ✉️ Email: <a href={`mailto:${personalEmail}`}>{personalEmail}</a>
+            <span className="personal-tag">Personal</span>
           </span>
         )}
         {claim.department && <span>🏢 {claim.department}</span>}
@@ -91,7 +123,7 @@ function ClaimDetails({ claim, isMine }: { claim: TrialClaim; isMine: boolean })
 
 type ClaimTarget = { trial: GroupedTrial; claim?: TrialClaim; defaultSiteKey?: string };
 
-type TabKey = 'hospital-trials' | 'claimed-trials' | 'coordinators' | 'add-trial';
+type TabKey = 'hospital-trials' | 'claimed-trials' | 'closed-trials' | 'coordinators' | 'add-trial';
 
 export function DoctorDashboard({ user, profile }: { user: User; profile: UserProfile }) {
   const isDoctor = profile.role === 'doctor';
@@ -111,6 +143,17 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
 
   // Modal for claiming
   const [claimTarget, setClaimTarget] = useState<ClaimTarget | null>(null);
+  const [closeTarget, setCloseTarget] = useState<TrialClaim | null>(null);
+  const [privateContacts, setPrivateContacts] = useState<ClaimPrivateContact[]>([]);
+  const [myPublicPhone, setMyPublicPhone] = useState('');
+  const closedTrials = useClosedTrials();
+
+  useEffect(() => subscribeMyPrivateContacts(user.uid, setPrivateContacts), [user.uid]);
+  // Only the public number is offered for trial contacts — the private one never goes public.
+  useEffect(() => subscribeUserContact(user.uid, (c) => setMyPublicPhone(c?.publicPhone ?? '')), [user.uid]);
+
+  const privateByClaim = useMemo(() => new Map(privateContacts.map((p) => [p.claimId, p])), [privateContacts]);
+  const closedClaimIds = useMemo(() => new Set(closedTrials.map((c) => c.claimId)), [closedTrials]);
 
   // Subscriptions
   useEffect(() => {
@@ -133,13 +176,17 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
   // Saved phone numbers across existing claims and profile
   const savedPhones = useMemo(() => {
     const phones = new Set<string>();
+    if (myPublicPhone) phones.add(myPublicPhone);
     for (const c of claims) {
       if (c.claimedByUid === user.uid && c.contactPhone) {
         phones.add(c.contactPhone);
       }
     }
+    for (const p of privateContacts) {
+      if (p.contactPhone) phones.add(p.contactPhone);
+    }
     return Array.from(phones);
-  }, [claims, user.uid]);
+  }, [claims, user.uid, myPublicPhone, privateContacts]);
 
   // Site rows at the doctor's hospital
   const hospitalFilteredTrials = useMemo(() => {
@@ -180,12 +227,64 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
     const myHospital = (profile.facility ?? '').trim().toLowerCase();
     const map = new Map<string, TrialClaim[]>();
     for (const c of claims) {
+      if (closedClaimIds.has(c.id)) continue; // closed sites live in the repository tab
       const sameHospital = myHospital && (c.hospitalName ?? '').trim().toLowerCase() === myHospital;
       if (c.claimedByUid !== user.uid && !sameHospital) continue;
       map.set(c.nctId, [...(map.get(c.nctId) ?? []), c]);
     }
     return map;
-  }, [claims, user.uid, profile.facility]);
+  }, [claims, user.uid, profile.facility, closedClaimIds]);
+
+  // Closed sites this user should see: ones they closed, claimed, or at their hospital.
+  const myClosedTrials = useMemo(() => {
+    const myHospital = (profile.facility ?? '').trim().toLowerCase();
+    const myClaimIds = new Set(claims.filter((c) => c.claimedByUid === user.uid).map((c) => c.id));
+    return closedTrials.filter(
+      (c) =>
+        c.closedByUid === user.uid ||
+        myClaimIds.has(c.claimId) ||
+        (myHospital && (c.hospitalName ?? '').trim().toLowerCase() === myHospital),
+    );
+  }, [closedTrials, claims, user.uid, profile.facility]);
+
+  /** Only a Principal Investigator closes trials: their own claims, their hospital's, or their coordinators'. */
+  function canClose(claim: TrialClaim): boolean {
+    if (!isDoctor) return false;
+    const myHospital = (profile.facility ?? '').trim().toLowerCase();
+    return (
+      claim.claimedByUid === user.uid ||
+      (Boolean(myHospital) && (claim.hospitalName ?? '').trim().toLowerCase() === myHospital) ||
+      approvedCoordinators.some((c) => c.uid === claim.claimedByUid)
+    );
+  }
+
+  async function handleReopen(c: ClosedTrial) {
+    if (!window.confirm(`Reopen ${c.nctId} at ${c.facility}? It will appear in the active trial lists again.`)) return;
+    try {
+      await reopenTrial(c, { uid: user.uid, email: profile.email, name: profile.name });
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : 'Failed to reopen the trial.');
+    }
+  }
+
+  function renderClaimActions(claim: TrialClaim, primaryLabel: string) {
+    const mine = claim.claimedByUid === user.uid;
+    if (!mine && !canClose(claim)) return null;
+    return (
+      <div className="pi-trial-actions">
+        {mine && (
+          <button className="btn" onClick={() => openExistingClaim(claim)} title="Edit contact phone/email and their visibility">
+            {primaryLabel}
+          </button>
+        )}
+        {canClose(claim) && (
+          <button className="btn-danger" onClick={() => setCloseTarget(claim)} title="Mark this trial as closed at this site">
+            Close trial
+          </button>
+        )}
+      </div>
+    );
+  }
 
   function getSiteClaim(nctId: string, site: TrialLocation): TrialClaim | undefined {
     return claims.find((c) => claimMatchesSite(c, nctId, site));
@@ -295,6 +394,12 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
             onClick={() => setActiveTab('claimed-trials')}
           >
             🛡️ Claimed Trials ({myClaimsByNct.size})
+          </button>
+          <button
+            className={`portal-tab ${activeTab === 'closed-trials' ? 'active' : ''}`}
+            onClick={() => setActiveTab('closed-trials')}
+          >
+            🗄 Closed Trials ({myClosedTrials.length})
           </button>
           {isDoctor && (
             <button
@@ -439,18 +544,12 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
                           </div>
                           {claim ? (
                             <>
-                              <ClaimDetails claim={claim} isMine={claim.claimedByUid === user.uid} />
-                              {claim.claimedByUid === user.uid && (
-                                <div className="pi-trial-actions">
-                                  <button
-                                    className="btn"
-                                    onClick={() => openExistingClaim(claim)}
-                                    title="Edit contact phone number or claim details"
-                                  >
-                                    ✏️ Edit Claim Contact Info
-                                  </button>
-                                </div>
-                              )}
+                              <ClaimDetails
+                                claim={claim}
+                                isMine={claim.claimedByUid === user.uid}
+                                privateContact={privateByClaim.get(claim.id)}
+                              />
+                              {renderClaimActions(claim, '✏️ Edit Claim Contact Info')}
                             </>
                           ) : (
                             <>
@@ -550,14 +649,12 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
 
                       {nctClaims.map((claim) => (
                         <div key={claim.id}>
-                          <ClaimDetails claim={claim} isMine={claim.claimedByUid === user.uid} />
-                          {claim.claimedByUid === user.uid && (
-                            <div className="pi-trial-actions">
-                              <button className="btn primary" onClick={() => openExistingClaim(claim)}>
-                                Manage Claim & Contact Info
-                              </button>
-                            </div>
-                          )}
+                          <ClaimDetails
+                            claim={claim}
+                            isMine={claim.claimedByUid === user.uid}
+                            privateContact={privateByClaim.get(claim.id)}
+                          />
+                          {renderClaimActions(claim, 'Manage Claim & Contact Info')}
                         </div>
                       ))}
 
@@ -574,6 +671,70 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
                     </div>
                   );
                 })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* CLOSED TRIALS — the repository */}
+        {activeTab === 'closed-trials' && (
+          <div className="tab-section">
+            <div className="sechead2" style={{ marginTop: 0 }}>
+              <h2>Closed Trial Repository</h2>
+              <span className="sup">
+                {isDoctor
+                  ? 'Trials closed at your center — no longer shown in active lists. Reopen one if it was closed by mistake.'
+                  : 'Trials your Principal Investigator closed at your center. Only a Principal Investigator can close or reopen a trial.'}
+              </span>
+            </div>
+            {myClosedTrials.length === 0 ? (
+              <div className="card full" style={{ textAlign: 'center', padding: '36px 20px' }}>
+                <div style={{ fontSize: 32, marginBottom: 8 }}>🗄</div>
+                <b>No closed trials yet.</b>
+                <p className="sup" style={{ margin: '8px auto', maxWidth: 440 }}>
+                  {isDoctor
+                    ? 'When a trial finishes at your site, use "Close trial" on its claim to move it here.'
+                    : 'When your Principal Investigator closes a trial, it will appear here.'}
+                </p>
+              </div>
+            ) : (
+              <div className="trials-listing">
+                {myClosedTrials.map((c) => (
+                  <div key={c.id} className="pi-trial-card">
+                    <div className="pi-trial-top">
+                      <div className="pi-trial-pills">
+                        <span className="pill closed-pill">Closed</span>
+                        {c.cancerType && (
+                          <span className="pill" style={{ background: 'var(--wash)', color: 'var(--brand-d)' }}>
+                            {c.cancerType}
+                          </span>
+                        )}
+                      </div>
+                      <span className="src">{c.nctId}</span>
+                    </div>
+                    <h3 className="pi-trial-title">{c.briefTitle || c.nctId}</h3>
+                    <div className="claim-contact-details">
+                      <span>
+                        📍 <b>{[c.facility, c.city, c.state].filter(Boolean).join(', ')}</b>
+                      </span>
+                      <span>
+                        Closed by <b>{c.closedByName}</b> · {formatTimestamp(c.closedAt)}
+                      </span>
+                    </div>
+                    {c.reason && (
+                      <div className="claim-notes-preview">
+                        <b>Reason:</b> {c.reason}
+                      </div>
+                    )}
+                    {isDoctor && c.closedByUid === user.uid && (
+                      <div className="pi-trial-actions">
+                        <button className="btn" onClick={() => handleReopen(c)}>
+                          Reopen trial
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -667,9 +828,15 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
           allClaims={claims}
           defaultSiteKey={claimTarget.defaultSiteKey}
           savedPhones={savedPhones}
+          defaultPhone={myPublicPhone}
+          privateContact={claimTarget.claim ? privateByClaim.get(claimTarget.claim.id) : undefined}
           isOpen
           onClose={() => setClaimTarget(null)}
         />
+      )}
+
+      {closeTarget && (
+        <CloseTrialModal claim={closeTarget} pi={profile} onClose={() => setCloseTarget(null)} />
       )}
     </div>
   );

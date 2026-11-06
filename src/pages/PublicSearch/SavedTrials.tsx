@@ -3,7 +3,7 @@ import type { FavoriteEntry } from '../../hooks/useFavorites';
 import { auth } from '../../firebase';
 import type { TrialSite } from '../../types';
 import { groupByNctId, type GroupedTrial } from '../../utils/groupTrials';
-import { AuthPanel } from './AuthPanel';
+import { Link } from 'react-router-dom';
 import { TrialCard } from './TrialCard';
 
 function toGroupedTrial(f: FavoriteEntry): GroupedTrial {
@@ -41,7 +41,13 @@ export function SavedTrials({ user, authLoading, favorites, rows, onOpenDetail, 
         <div className="sechead">
           <h2>Saved trials</h2>
         </div>
-        <AuthPanel />
+        <div className="authcard">
+          <h2>Sign in to save trials</h2>
+          <p className="authsub">Optional — no account is needed to search or browse.</p>
+          <Link className="go" to="/login?role=individual" style={{ display: 'block', textAlign: 'center', textDecoration: 'none' }}>
+            Sign in or create an account
+          </Link>
+        </div>
       </div>
     );
   }

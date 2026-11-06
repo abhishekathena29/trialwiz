@@ -307,13 +307,18 @@ export function PublicSearch() {
           <div className="headnav">
             {/* Signed-in users never see login options: providers get their dashboard, everyone else their account. */}
             {!user && !authLoading && (
-              <Link className="navlink" to="/portal">
-                Provider login
+              <Link className="navlink" to="/login">
+                Log in
               </Link>
             )}
-            {profile && (
+            {(profile?.role === 'doctor' || profile?.role === 'coordinator') && (
               <Link className="navlink" to="/portal">
                 Dashboard
+              </Link>
+            )}
+            {profile?.role === 'admin' && (
+              <Link className="navlink" to="/admin">
+                Admin
               </Link>
             )}
             <button className="accountpill" onClick={() => changeSeg('saved')} title={user ? user.email ?? '' : 'Sign in to save trials'}>

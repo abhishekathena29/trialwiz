@@ -13,9 +13,13 @@ import {
   where,
 } from 'firebase/firestore';
 import { db, firebaseConfig } from '../firebase';
-import type { UserProfile } from '../types';
+import type { PublicUserType, UserContact, UserProfile } from '../types';
+import { writeAudit, type AuditActor } from './audit';
 
 export const USERS_COLLECTION = 'users';
+/** Phone numbers live outside `users/` because PI profiles are publicly readable (coordinators
+ * look them up before signing in). `userContacts/{uid}` is readable by the owner and admins only. */
+export const USER_CONTACTS_COLLECTION = 'userContacts';
 
 function requireDb() {
   if (!db) throw new Error('Firebase is not configured — see README.md.');
@@ -28,7 +32,12 @@ function requireDb() {
  * own richer doctor/coordinator doc, so portal sign-in passes no `createAs`. Never throws: a
  * failed write is logged and must not block the sign-in itself.
  */
-export async function recordSignIn(user: User, createAs?: 'user' | 'admin'): Promise<void> {
+export async function recordSignIn(
+  user: User,
+  createAs?: 'user' | 'admin',
+  userType?: PublicUserType,
+  name?: string,
+): Promise<void> {
   try {
     const firestore = requireDb();
     const ref = doc(firestore, USERS_COLLECTION, user.uid);
@@ -39,8 +48,9 @@ export async function recordSignIn(user: User, createAs?: 'user' | 'admin'): Pro
       await setDoc(ref, {
         uid: user.uid,
         email,
-        name: user.displayName || email.split('@')[0],
+        name: name?.trim() || user.displayName || email.split('@')[0],
         role: createAs,
+        ...(createAs === 'user' && userType ? { userType } : {}),
         signInProvider: user.providerData[0]?.providerId ?? 'password',
         createdAt: serverTimestamp(),
         lastLoginAt: serverTimestamp(),
@@ -51,6 +61,56 @@ export async function recordSignIn(user: User, createAs?: 'user' | 'admin'): Pro
   }
 }
 
+export interface AccountPhones {
+  /** Private phone — owner + admin only. */
+  phone?: string;
+  /** PI / doctor public phone — default contact shown on their trials. */
+  publicPhone?: string;
+}
+
+/** Stores a user's phone numbers (no-op when both are blank). */
+export async function saveUserPhones(uid: string, phones: AccountPhones): Promise<void> {
+  const phone = (phones.phone ?? '').trim();
+  const publicPhone = (phones.publicPhone ?? '').trim();
+  if (!phone && !publicPhone) return;
+  const firestore = requireDb();
+  await setDoc(doc(firestore, USER_CONTACTS_COLLECTION, uid), {
+    uid,
+    phone,
+    publicPhone,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/** One user's contact doc — for the signed-in user's own phone. */
+export function subscribeUserContact(uid: string, onChange: (contact: UserContact | null) => void): () => void {
+  if (!db) {
+    onChange(null);
+    return () => {};
+  }
+  return onSnapshot(
+    doc(db, USER_CONTACTS_COLLECTION, uid),
+    (snap) => onChange(snap.exists() ? (snap.data() as UserContact) : null),
+    () => onChange(null),
+  );
+}
+
+/** Admin-only: every user's contact phone, keyed by uid. */
+export function subscribeAllUserContacts(onChange: (byUid: Map<string, UserContact>) => void): () => void {
+  if (!db) {
+    onChange(new Map());
+    return () => {};
+  }
+  return onSnapshot(
+    collection(db, USER_CONTACTS_COLLECTION),
+    (snap) => onChange(new Map(snap.docs.map((d) => [d.id, d.data() as UserContact]))),
+    (err) => {
+      console.warn('[TrialWiz] user contacts subscription failed:', err);
+      onChange(new Map());
+    },
+  );
+}
+
 export async function createDoctorProfile(
   uid: string,
   email: string,
@@ -58,8 +118,10 @@ export async function createDoctorProfile(
   facility: string,
   city = '',
   state = '',
+  phones: AccountPhones = {},
 ): Promise<void> {
   const firestore = requireDb();
+  await saveUserPhones(uid, phones);
   await setDoc(doc(firestore, USERS_COLLECTION, uid), {
     uid,
     email,
@@ -105,36 +167,70 @@ export function subscribeDoctors(onChange: (doctors: UserProfile[]) => void): ()
   );
 }
 
-export interface AdminCreateDoctorParams {
+/** Account types the admin (and the sign-up page) can create. Individuals and referring doctors
+ * are public Trial Finder accounts (role 'user'); PIs are role 'doctor'. */
+export type NewAccountRole = 'individual' | 'doctor' | 'pi' | 'coordinator';
+
+export interface AdminCreateAccountParams {
+  role: NewAccountRole;
   name: string;
   email: string;
   password: string;
-  facility: string;
+  facility?: string;
   city?: string;
   state?: string;
+  phones?: AccountPhones;
+  /** Coordinators only: the approved PI they'll work under. */
+  supervisor?: UserProfile;
 }
 
-export async function createDoctorAccountByAdmin(params: AdminCreateDoctorParams): Promise<string> {
+/**
+ * Admin-only: creates a Firebase Auth user plus its profile, already approved. Uses a throwaway
+ * secondary Firebase app so the admin's own session isn't replaced by the new account's.
+ */
+export async function createAccountByAdmin(params: AdminCreateAccountParams): Promise<string> {
   const firestore = requireDb();
+  if (params.role === 'coordinator' && !params.supervisor) {
+    throw new Error('Choose the Principal Investigator this coordinator works under.');
+  }
   const appName = `admin_create_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const secondaryApp = initializeApp(firebaseConfig, appName);
   try {
     const secondaryAuth = getAuth(secondaryApp);
-    const cred = await createUserWithEmailAndPassword(secondaryAuth, params.email.trim(), params.password);
+    const email = params.email.trim();
+    const cred = await createUserWithEmailAndPassword(secondaryAuth, email, params.password);
     await signOut(secondaryAuth);
     const uid = cred.user.uid;
+    const base = { uid, email, name: params.name.trim(), signInProvider: 'password', createdAt: serverTimestamp() };
 
-    await setDoc(doc(firestore, USERS_COLLECTION, uid), {
-      uid,
-      email: params.email.trim(),
-      name: params.name.trim(),
-      role: 'doctor',
-      facility: params.facility.trim(),
-      city: (params.city ?? '').trim(),
-      state: (params.state ?? '').trim(),
-      status: 'approved',
-      createdAt: serverTimestamp(),
-    });
+    let profile: Record<string, unknown>;
+    if (params.role === 'pi') {
+      profile = {
+        ...base,
+        role: 'doctor',
+        facility: (params.facility ?? '').trim(),
+        city: (params.city ?? '').trim(),
+        state: (params.state ?? '').trim(),
+        status: 'approved',
+      };
+    } else if (params.role === 'coordinator') {
+      const sup = params.supervisor!;
+      profile = {
+        ...base,
+        role: 'coordinator',
+        status: 'approved',
+        requestedDoctorEmail: sup.email.trim().toLowerCase(),
+        requestedDoctorName: sup.name,
+        doctorUid: sup.uid,
+        facility: (params.facility ?? '').trim() || sup.facility || '',
+        city: (params.city ?? '').trim() || sup.city || '',
+        state: (params.state ?? '').trim() || sup.state || '',
+      };
+    } else {
+      profile = { ...base, role: 'user', userType: params.role };
+    }
+    await setDoc(doc(firestore, USERS_COLLECTION, uid), profile);
+    await saveUserPhones(uid, params.phones ?? {});
 
     return uid;
   } finally {
@@ -171,8 +267,10 @@ export async function createCoordinatorProfile(
   city: string,
   state: string,
   requestedDoctorName?: string,
+  phones: AccountPhones = {},
 ): Promise<void> {
   const firestore = requireDb();
+  await saveUserPhones(uid, phones);
   await setDoc(doc(firestore, USERS_COLLECTION, uid), {
     uid,
     email,
@@ -238,4 +336,68 @@ export async function rejectCoordinator(coordinatorUid: string): Promise<void> {
     status: 'rejected',
     doctorUid: null,
   });
+}
+
+/** Admin-only: every trial coordinator account, any status. */
+export function subscribeCoordinators(onChange: (coordinators: UserProfile[]) => void): () => void {
+  if (!db) {
+    onChange([]);
+    return () => {};
+  }
+  const q = query(collection(db, USERS_COLLECTION), where('role', '==', 'coordinator'));
+  return onSnapshot(
+    q,
+    (snap) => onChange(snap.docs.map((d) => d.data() as UserProfile)),
+    (err) => {
+      console.warn('[TrialWiz] coordinator list subscription failed:', err);
+      onChange([]);
+    },
+  );
+}
+
+/**
+ * Admin-only: turns a Principal Investigator into a trial coordinator working under another PI.
+ * The account is linked to (and approved for) the chosen supervising PI straight away, since the
+ * admin is making the call. Their existing claims stay in place. Recorded in the audit trail.
+ */
+export async function changePiToCoordinator(
+  admin: AuditActor,
+  pi: UserProfile,
+  supervisor: UserProfile,
+): Promise<void> {
+  const firestore = requireDb();
+  await updateDoc(doc(firestore, USERS_COLLECTION, pi.uid), {
+    role: 'coordinator',
+    status: 'approved',
+    requestedDoctorEmail: supervisor.email.trim().toLowerCase(),
+    requestedDoctorName: supervisor.name,
+    doctorUid: supervisor.uid,
+    facility: pi.facility || supervisor.facility || '',
+    city: pi.city || supervisor.city || '',
+    state: pi.state || supervisor.state || '',
+  });
+  await writeAudit(
+    admin,
+    'role_changed',
+    `${pi.name} <${pi.email}>`,
+    `Principal Investigator → Trial Coordinator (under ${supervisor.name} <${supervisor.email}>)`,
+  ).catch((e) => console.warn('[TrialWiz] audit write failed (role change):', e));
+}
+
+/** Admin-only: promotes a trial coordinator to an approved Principal Investigator. */
+export async function changeCoordinatorToPi(admin: AuditActor, coordinator: UserProfile): Promise<void> {
+  const firestore = requireDb();
+  await updateDoc(doc(firestore, USERS_COLLECTION, coordinator.uid), {
+    role: 'doctor',
+    status: 'approved',
+    requestedDoctorEmail: '',
+    requestedDoctorName: '',
+    doctorUid: null,
+  });
+  await writeAudit(
+    admin,
+    'role_changed',
+    `${coordinator.name} <${coordinator.email}>`,
+    'Trial Coordinator → Principal Investigator',
+  ).catch((e) => console.warn('[TrialWiz] audit write failed (role change):', e));
 }
