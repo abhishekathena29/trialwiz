@@ -43,7 +43,8 @@ service cloud.firestore {
         (resource.data.role == 'coordinator' && resource.data.requestedDoctorEmail == request.auth.token.email)
       ));
       allow create: if request.auth != null && (isValidProfileCreate(uid, request.resource.data) || isAdmin());
-      allow update: if isAdmin() || isSelfProfileUpdate(uid, request.resource.data) || isDoctorApproval(request.resource.data);
+      allow update: if isAdmin() || isSelfProfileUpdate(uid, request.resource.data) || isDoctorApproval(request.resource.data) ||
+        isSameHospitalPiAuthorization(request.resource.data);
       allow delete: if isAdmin();
     }
 
@@ -113,10 +114,48 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow create: if request.auth != null &&
         request.resource.data.actorUid == request.auth.uid &&
-        request.resource.data.action in ['trial_closed', 'trial_reopened', 'role_changed'] &&
+        request.resource.data.action in ['trial_closed', 'trial_reopened', 'role_changed', 'pi_authorized'] &&
         (request.resource.data.action != 'role_changed' || isAdmin()) &&
         request.resource.data.at == request.time;
       allow update, delete: if false;
+    }
+
+    // Append-only history of PI verifications. Admins read everything; a verified PI reads only
+    // their own hospital's history. Written in the same batch as the status flip it records.
+    match /piAuthorizations/{id} {
+      allow read: if isAdmin() || (isApprovedDoctor() && resource.data.hospitalKey == myHospitalKey());
+      allow create: if request.resource.data.id == id &&
+        request.resource.data.authorizedByUid == request.auth.uid &&
+        ((isAdmin() && request.resource.data.authorizedByRole == 'admin') ||
+         (isApprovedDoctor() &&
+          request.resource.data.authorizedByRole == 'pi' &&
+          request.resource.data.hospitalKey == myHospitalKey() &&
+          getAfter(/databases/$(database)/documents/users/$(request.resource.data.piUid)).data.authorizedByUid == request.auth.uid &&
+          getAfter(/databases/$(database)/documents/users/$(request.resource.data.piUid)).data.status == 'approved' &&
+          getAfter(/databases/$(database)/documents/users/$(request.resource.data.piUid)).data.facility.trim().lower() == myHospitalKey()));
+      allow update, delete: if false;
+    }
+
+    function myHospitalKey() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.facility.trim().lower();
+    }
+
+    // A verified PI may verify a *pending* PI at their own hospital — nothing else. Hospital names
+    // must match after trim + lowercase (no cross-hospital approvals), only the status and
+    // authorized-by fields may change, and the authorizer must name themselves.
+    function isSameHospitalPiAuthorization(data) {
+      return isApprovedDoctor() &&
+        resource.data.role == 'doctor' &&
+        resource.data.status == 'pending' &&
+        resource.data.facility is string &&
+        myHospitalKey() != '' &&
+        resource.data.facility.trim().lower() == myHospitalKey() &&
+        data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'authorizedByUid', 'authorizedByName', 'authorizedByRole', 'authorizedAt']) &&
+        data.status == 'approved' &&
+        data.authorizedByUid == request.auth.uid &&
+        data.authorizedByRole == 'pi' &&
+        data.authorizedAt == request.time;
     }
 
     function piMayCloseClaim(claimId) {
@@ -152,7 +191,11 @@ service cloud.firestore {
     function isSelfProfileUpdate(uid, data) {
       return request.auth != null && request.auth.uid == uid &&
         data.uid == uid && data.role == resource.data.role &&
-        (data.status != 'approved' || resource.data.status == 'approved');
+        (data.status != 'approved' || resource.data.status == 'approved') &&
+        // A verified PI can't move themselves to another hospital — their hospital decides which
+        // PIs they may authorize. Only an admin can change it.
+        (resource.data.role != 'doctor' || resource.data.status != 'approved' ||
+         data.get('facility', '') == resource.data.get('facility', ''));
     }
 
     function isDoctor() {

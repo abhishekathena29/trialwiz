@@ -15,6 +15,7 @@ import {
 import { db, firebaseConfig } from '../firebase';
 import type { PublicUserType, UserContact, UserProfile } from '../types';
 import { writeAudit, type AuditActor } from './audit';
+import { recordAdminCreatedPi } from './piAuthorization';
 
 export const USERS_COLLECTION = 'users';
 /** Phone numbers live outside `users/` because PI profiles are publicly readable (coordinators
@@ -37,6 +38,7 @@ export async function recordSignIn(
   createAs?: 'user' | 'admin',
   userType?: PublicUserType,
   name?: string,
+  specialization?: string,
 ): Promise<void> {
   try {
     const firestore = requireDb();
@@ -51,6 +53,7 @@ export async function recordSignIn(
         name: name?.trim() || user.displayName || email.split('@')[0],
         role: createAs,
         ...(createAs === 'user' && userType ? { userType } : {}),
+        ...(specialization?.trim() ? { specialization: specialization.trim() } : {}),
         signInProvider: user.providerData[0]?.providerId ?? 'password',
         createdAt: serverTimestamp(),
         lastLoginAt: serverTimestamp(),
@@ -119,6 +122,7 @@ export async function createDoctorProfile(
   city = '',
   state = '',
   phones: AccountPhones = {},
+  specialization = '',
 ): Promise<void> {
   const firestore = requireDb();
   await saveUserPhones(uid, phones);
@@ -127,6 +131,7 @@ export async function createDoctorProfile(
     email,
     name,
     role: 'doctor',
+    specialization: specialization.trim(),
     facility: facility.trim(),
     city: city.trim(),
     state: state.trim(),
@@ -137,11 +142,21 @@ export async function createDoctorProfile(
   });
 }
 
-export async function approveDoctor(doctorUid: string): Promise<void> {
-  const firestore = requireDb();
-  await updateDoc(doc(firestore, USERS_COLLECTION, doctorUid), {
-    status: 'approved',
-  });
+/** Admin-only: every account profile (all roles) — the admin dashboard derives its doctor,
+ * coordinator and new-account views from this one live list. */
+export function subscribeAllUsers(onChange: (users: UserProfile[]) => void): () => void {
+  if (!db) {
+    onChange([]);
+    return () => {};
+  }
+  return onSnapshot(
+    collection(db, USERS_COLLECTION),
+    (snap) => onChange(snap.docs.map((d) => d.data() as UserProfile)),
+    (err) => {
+      console.warn('[TrialWiz] all-users subscription failed:', err);
+      onChange([]);
+    },
+  );
 }
 
 export async function rejectDoctor(doctorUid: string): Promise<void> {
@@ -180,8 +195,12 @@ export interface AdminCreateAccountParams {
   city?: string;
   state?: string;
   phones?: AccountPhones;
+  /** PIs and doctors only. */
+  specialization?: string;
   /** Coordinators only: the approved PI they'll work under. */
   supervisor?: UserProfile;
+  /** The admin creating the account — recorded as the authorizer of a new PI. */
+  admin?: AuditActor;
 }
 
 /**
@@ -202,16 +221,23 @@ export async function createAccountByAdmin(params: AdminCreateAccountParams): Pr
     await signOut(secondaryAuth);
     const uid = cred.user.uid;
     const base = { uid, email, name: params.name.trim(), signInProvider: 'password', createdAt: serverTimestamp() };
+    const specialization = (params.specialization ?? '').trim();
 
     let profile: Record<string, unknown>;
     if (params.role === 'pi') {
       profile = {
         ...base,
         role: 'doctor',
+        specialization,
         facility: (params.facility ?? '').trim(),
         city: (params.city ?? '').trim(),
         state: (params.state ?? '').trim(),
         status: 'approved',
+        // Admin-created PIs are authorized by the admin at creation time.
+        authorizedByUid: params.admin?.uid ?? '',
+        authorizedByName: params.admin?.name ?? 'TrialWiz admin',
+        authorizedByRole: 'admin',
+        authorizedAt: serverTimestamp(),
       };
     } else if (params.role === 'coordinator') {
       const sup = params.supervisor!;
@@ -227,10 +253,20 @@ export async function createAccountByAdmin(params: AdminCreateAccountParams): Pr
         state: (params.state ?? '').trim() || sup.state || '',
       };
     } else {
-      profile = { ...base, role: 'user', userType: params.role };
+      profile = {
+        ...base,
+        role: 'user',
+        userType: params.role,
+        ...(params.role === 'doctor' && specialization ? { specialization } : {}),
+      };
     }
     await setDoc(doc(firestore, USERS_COLLECTION, uid), profile);
     await saveUserPhones(uid, params.phones ?? {});
+    if (params.role === 'pi' && params.admin) {
+      await recordAdminCreatedPi(profile as unknown as UserProfile, { ...params.admin, name: params.admin.name ?? 'TrialWiz admin', role: 'admin' }).catch(
+        (e) => console.warn('[TrialWiz] authorization history write failed (admin-created PI):', e),
+      );
+    }
 
     return uid;
   } finally {

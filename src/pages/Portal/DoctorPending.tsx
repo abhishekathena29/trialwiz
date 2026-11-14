@@ -28,7 +28,7 @@ export function DoctorPending({ user, profile }: { user: User; profile: UserProf
           <p>
             {rejected
               ? `Your Principal Investigator account for ${profile.facility || 'your hospital'} could not be approved at this time. Please contact the TrialWiz administration team for assistance.`
-              : `Welcome Dr. ${profile.name}! Your Principal Investigator account for ${profile.facility ? `"${profile.facility}"` : 'your hospital'} is currently under review by TrialWiz Administrators.`}
+              : `Welcome Dr. ${profile.name}! Your Principal Investigator account for ${profile.facility ? `"${profile.facility}"` : 'your hospital'} is awaiting verification — by TrialWiz admin, or by a verified Principal Investigator at your hospital.`}
           </p>
 
           <div className="pending-box">

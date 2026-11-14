@@ -110,6 +110,8 @@ export interface UserProfile {
   signInProvider?: string;
   /** Public Trial Finder accounts only: who the person said they are at sign-up. */
   userType?: PublicUserType;
+  /** Doctors and PIs: clinical specialization, e.g. "Medical Oncology". */
+  specialization?: string;
   /** Hospital / Institution name — used for doctors (Principal Investigators) and coordinators */
   facility?: string;
   city?: string;
@@ -121,6 +123,28 @@ export interface UserProfile {
   requestedDoctorEmail?: string;
   requestedDoctorName?: string;
   doctorUid?: string | null;
+  /** PIs: who verified this account — TrialWiz admin, or an already-verified PI at the same hospital. */
+  authorizedByUid?: string;
+  authorizedByName?: string;
+  authorizedByRole?: 'admin' | 'pi';
+  authorizedAt?: unknown;
+}
+
+/** One PI authorization event, at `piAuthorizations/{id}` — append-only history of who
+ * verified which Principal Investigator, and when. */
+export interface PiAuthorization {
+  id: string;
+  piUid: string;
+  piName: string;
+  piEmail: string;
+  hospital: string;
+  /** `hospitalKey(hospital)` — what same-hospital permission checks compare. */
+  hospitalKey: string;
+  authorizedByUid: string;
+  authorizedByName: string;
+  authorizedByEmail: string;
+  authorizedByRole: 'admin' | 'pi';
+  authorizedAt: unknown;
 }
 
 /** Record of a Principal Investigator or Coordinator claiming a trial at their site.
@@ -196,7 +220,7 @@ export interface ClosedTrial {
   closedAt: unknown;
 }
 
-export type AuditAction = 'trial_closed' | 'trial_reopened' | 'role_changed';
+export type AuditAction = 'trial_closed' | 'trial_reopened' | 'role_changed' | 'pi_authorized';
 
 /** Append-only audit trail at `auditLog/{id}` — readable by admins only. */
 export interface AuditEntry {

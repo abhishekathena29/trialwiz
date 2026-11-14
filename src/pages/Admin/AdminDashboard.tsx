@@ -15,17 +15,18 @@ import { useTrialCatalogue } from '../../hooks/useTrialCatalogue';
 import { useClosedTrials } from '../../hooks/useClosedTrials';
 import { subscribeAuditLog } from '../../services/audit';
 import { reopenTrial } from '../../services/closedTrials';
+import { authorizePi, subscribeAllPiAuthorizations } from '../../services/piAuthorization';
 import {
-  approveDoctor,
   changeCoordinatorToPi,
   rejectDoctor,
   subscribeAllUserContacts,
-  subscribeCoordinators,
-  subscribeDoctors,
+  subscribeAllUsers,
 } from '../../services/profiles';
 import { subscribeAllClaims } from '../../services/trialClaims';
-import type { AuditEntry, ClosedTrial, TrialClaim, UserContact, UserProfile } from '../../types';
-import { formatTimestamp } from '../../utils/timestamps';
+import type { AuditEntry, ClosedTrial, PiAuthorization, TrialClaim, UserContact, UserProfile } from '../../types';
+import { formatTimestamp, timestampMs } from '../../utils/timestamps';
+import { matchesSearch } from '../../utils/search';
+import { AllDoctorsSection } from './AllDoctorsSection';
 import { countUniqueTrials, tallyByCancerType, tallyByCentre } from '../../utils/trialStats';
 import { AdminHeader } from './AdminHeader';
 import { ChangeRoleModal } from './ChangeRoleModal';
@@ -35,7 +36,16 @@ const AUDIT_LABEL: Record<string, string> = {
   trial_closed: 'Trial closed',
   trial_reopened: 'Trial reopened',
   role_changed: 'Role changed',
+  pi_authorized: 'PI authorized',
 };
+
+/** Labels for the New-accounts breakdown. Admin accounts aren't counted as registrations. */
+function accountTypeLabel(u: UserProfile): string | null {
+  if (u.role === 'doctor') return 'Principal Investigators';
+  if (u.role === 'coordinator') return 'Trial coordinators';
+  if (u.role === 'user') return u.userType === 'doctor' ? 'Doctors' : 'Individuals';
+  return null;
+}
 
 const PERIODS: Array<[number, string]> = [
   [30, 'Last 30 days'],
@@ -149,23 +159,62 @@ export function AdminDashboard({ user }: { user: User }) {
   const [error, setError] = useState('');
 
   const [adminTab, setAdminTab] = useState<'demand' | 'catalogue' | 'doctors' | 'closed'>('demand');
-  const [doctors, setDoctors] = useState<UserProfile[]>([]);
+  const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const [claims, setClaims] = useState<TrialClaim[]>([]);
   const [createDoctorOpen, setCreateDoctorOpen] = useState(false);
   const [busyDoctorUid, setBusyDoctorUid] = useState<string | null>(null);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
-  const [coordinators, setCoordinators] = useState<UserProfile[]>([]);
+  const [piSearch, setPiSearch] = useState('');
+  // Start of the selected period — set by the data-loading effect (Date.now() can't run in render).
+  const [periodStartMs, setPeriodStartMs] = useState<number | null>(null);
+  const [coordSearch, setCoordSearch] = useState('');
+  const [authHistory, setAuthHistory] = useState<PiAuthorization[]>([]);
   const [contacts, setContacts] = useState<Map<string, UserContact>>(new Map());
   const [roleChangeTarget, setRoleChangeTarget] = useState<UserProfile | null>(null);
   const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
   const closedTrials = useClosedTrials();
   const adminActor = useMemo(() => ({ uid: user.uid, email: user.email ?? '', name: 'TrialWiz admin' }), [user]);
 
-  useEffect(() => {
-    return subscribeDoctors(setDoctors);
-  }, []);
+  useEffect(() => subscribeAllUsers(setAllUsers), []);
+  useEffect(() => subscribeAllPiAuthorizations(setAuthHistory), []);
 
-  useEffect(() => subscribeCoordinators(setCoordinators), []);
+  const doctors = useMemo(() => allUsers.filter((u) => u.role === 'doctor'), [allUsers]);
+  const coordinators = useMemo(() => allUsers.filter((u) => u.role === 'coordinator'), [allUsers]);
+  // PIs + referring doctors (public accounts that signed up as a doctor).
+  const allDoctorAccounts = useMemo(
+    () => allUsers.filter((u) => u.role === 'doctor' || (u.role === 'user' && u.userType === 'doctor')),
+    [allUsers],
+  );
+
+  // New accounts = real registrations (users/ docs) created inside the selected period. Not the
+  // 'signup' usage events: those were only ever logged by the public sign-up form, so admin-created
+  // and portal accounts were missing — and they went through the <5 k-anonymity mask meant for
+  // patient search data. Account counts are internal, so they're shown exactly.
+  const newAccounts = useMemo(() => {
+    const since = periodStartMs ?? Number.POSITIVE_INFINITY;
+    const byType = new Map<string, number>();
+    let total = 0;
+    for (const u of allUsers) {
+      const label = accountTypeLabel(u);
+      const created = timestampMs(u.createdAt);
+      if (!label || created == null || created < since) continue;
+      total += 1;
+      byType.set(label, (byType.get(label) ?? 0) + 1);
+    }
+    return { total, breakdown: [...byType.entries()].sort((a, b) => b[1] - a[1]) };
+  }, [allUsers, periodStartMs]);
+
+  const visibleApprovedDoctors = useMemo(
+    () => doctors.filter((d) => d.status === 'approved' && matchesSearch(piSearch, [d.name, d.facility, d.specialization, d.email])),
+    [doctors, piSearch],
+  );
+  const visibleCoordinators = useMemo(
+    () =>
+      coordinators.filter((c) =>
+        matchesSearch(coordSearch, [c.name, c.email, c.facility, c.city, c.requestedDoctorName, c.requestedDoctorEmail]),
+      ),
+    [coordinators, coordSearch],
+  );
   useEffect(() => subscribeAllUserContacts(setContacts), []);
   useEffect(() => subscribeAuditLog(setAuditEntries), []);
 
@@ -227,10 +276,11 @@ export function AdminDashboard({ user }: { user: User }) {
     return set.size;
   }, [approvedDoctors]);
 
-  async function handleApproveDoctor(uid: string, name: string) {
+  async function handleApproveDoctor(d: UserProfile) {
+    const { uid, name } = d;
     setBusyDoctorUid(uid);
     try {
-      await approveDoctor(uid);
+      await authorizePi(d, { uid: user.uid, name: 'TrialWiz admin', email: user.email ?? '', role: 'admin' });
       setActionFeedback(`Approved Dr. ${name}. They can now access their dashboard and claim trials.`);
       setTimeout(() => setActionFeedback(null), 6000);
     } catch (e) {
@@ -265,6 +315,7 @@ export function AdminDashboard({ user }: { user: User }) {
       setUsageRecords(null);
       setError('');
       const sinceMs = Date.now() - periodDays * 86_400_000;
+      setPeriodStartMs(sinceMs);
       try {
         const r = await fetchDemandRecords(sinceMs);
         if (!cancelled) setRecords(r);
@@ -501,8 +552,13 @@ export function AdminDashboard({ user }: { user: User }) {
                         <div className="l">Events ({periodDays} days)</div>
                       </div>
                       <div className="kpi">
-                        <div className="n">{displayCount(usageAgg.signups)}</div>
-                        <div className="l">New accounts</div>
+                        <div className="n">{newAccounts.total.toLocaleString()}</div>
+                        <div className="l">New accounts ({periodDays} days)</div>
+                        <div className="d">
+                          {newAccounts.breakdown.length
+                            ? newAccounts.breakdown.map(([k, v]) => `${v} ${k.toLowerCase()}`).join(' · ')
+                            : 'No registrations in this period'}
+                        </div>
                       </div>
                       <div className="kpi">
                         <div className="n">{displayCount(usageAgg.signins)}</div>
@@ -689,7 +745,7 @@ export function AdminDashboard({ user }: { user: User }) {
                                 className="btn primary"
                                 style={{ padding: '6px 12px', fontSize: 12 }}
                                 disabled={busyDoctorUid === d.uid}
-                                onClick={() => handleApproveDoctor(d.uid, d.name)}
+                                onClick={() => handleApproveDoctor(d)}
                               >
                                 {busyDoctorUid === d.uid ? '…' : 'Approve'}
                               </button>
@@ -711,14 +767,30 @@ export function AdminDashboard({ user }: { user: User }) {
               )}
             </div>
 
+            <AllDoctorsSection doctors={allDoctorAccounts} phoneOf={phoneOf} />
+
             {/* VERIFIED PRINCIPAL INVESTIGATORS */}
             <div className="sechead2">
               <h2>Verified Principal Investigators ({approvedDoctors.length})</h2>
-              <span className="sup">Authorized to claim trials, add site contacts, and approve trial coordinators</span>
+              <span className="sup">Authorized to claim trials, add site contacts, approve coordinators, and authorize PIs at their hospital</span>
             </div>
             <div className="card full">
+              {approvedDoctors.length > 0 && (
+                <div className="admin-search-row">
+                  <input
+                    type="search"
+                    className="claim-input"
+                    value={piSearch}
+                    onChange={(e) => setPiSearch(e.target.value)}
+                    placeholder="Search verified PIs by name, hospital or specialization…"
+                    aria-label="Search verified Principal Investigators"
+                  />
+                </div>
+              )}
               {approvedDoctors.length === 0 ? (
                 <div className="sup">No approved doctor accounts yet. Use the "+ Create Account" button above to add one.</div>
+              ) : visibleApprovedDoctors.length === 0 ? (
+                <div className="sup">No verified Principal Investigators match "{piSearch}".</div>
               ) : (
                 <div className="tablewrap">
                   <table>
@@ -726,6 +798,7 @@ export function AdminDashboard({ user }: { user: User }) {
                       <tr>
                         <th>Doctor Name</th>
                         <th>Hospital / Institution</th>
+                        <th>Specialization</th>
                         <th>Location</th>
                         <th>Email</th>
                         <th>Phone</th>
@@ -734,10 +807,11 @@ export function AdminDashboard({ user }: { user: User }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {approvedDoctors.map((d) => (
+                      {visibleApprovedDoctors.map((d) => (
                         <tr key={d.uid}>
                           <td><b>{d.name}</b></td>
                           <td>{d.facility || '—'}</td>
+                          <td>{d.specialization || '—'}</td>
                           <td>{[d.city, d.state].filter(Boolean).join(', ') || '—'}</td>
                           <td>{d.email}</td>
                           <td>{phoneOf(d.uid)}</td>
@@ -799,7 +873,7 @@ export function AdminDashboard({ user }: { user: User }) {
                                 className="btn"
                                 style={{ padding: '4px 10px', fontSize: 11.5 }}
                                 disabled={busyDoctorUid === d.uid}
-                                onClick={() => handleApproveDoctor(d.uid, d.name)}
+                                onClick={() => handleApproveDoctor(d)}
                               >
                                 Approve instead
                               </button>
@@ -821,8 +895,22 @@ export function AdminDashboard({ user }: { user: User }) {
               </span>
             </div>
             <div className="card full">
+              {coordinators.length > 0 && (
+                <div className="admin-search-row">
+                  <input
+                    type="search"
+                    className="claim-input"
+                    value={coordSearch}
+                    onChange={(e) => setCoordSearch(e.target.value)}
+                    placeholder="Search coordinators by name, email, hospital or PI…"
+                    aria-label="Search trial coordinators"
+                  />
+                </div>
+              )}
               {coordinators.length === 0 ? (
                 <div className="sup">No trial coordinator accounts yet.</div>
+              ) : visibleCoordinators.length === 0 ? (
+                <div className="sup">No trial coordinators match "{coordSearch}".</div>
               ) : (
                 <div className="tablewrap">
                   <table>
@@ -838,7 +926,7 @@ export function AdminDashboard({ user }: { user: User }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {coordinators.map((c) => (
+                      {visibleCoordinators.map((c) => (
                         <tr key={c.uid}>
                           <td><b>{c.name}</b></td>
                           <td>{c.requestedDoctorName || c.requestedDoctorEmail || '—'}</td>
@@ -857,6 +945,48 @@ export function AdminDashboard({ user }: { user: User }) {
                             >
                               Make Principal Investigator
                             </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* PI AUTHORIZATION HISTORY */}
+            <div className="sechead2">
+              <h2>PI authorization history ({authHistory.length})</h2>
+              <span className="sup">
+                Who verified each Principal Investigator and when — TrialWiz admin, or a verified PI at the same hospital
+              </span>
+            </div>
+            <div className="card full">
+              {authHistory.length === 0 ? (
+                <div className="sup">No authorizations recorded yet.</div>
+              ) : (
+                <div className="tablewrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>When</th>
+                        <th>Principal Investigator</th>
+                        <th>Hospital</th>
+                        <th>Authorized by</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {authHistory.map((h) => (
+                        <tr key={h.id}>
+                          <td>{formatTimestamp(h.authorizedAt)}</td>
+                          <td>
+                            <b>{h.piName}</b>
+                            <div className="sup">{h.piEmail}</div>
+                          </td>
+                          <td>{h.hospital || '—'}</td>
+                          <td>
+                            {h.authorizedByRole === 'admin' ? 'TrialWiz admin' : `PI · ${h.authorizedByName}`}
+                            <div className="sup">{h.authorizedByEmail}</div>
                           </td>
                         </tr>
                       ))}
@@ -980,6 +1110,7 @@ export function AdminDashboard({ user }: { user: User }) {
 
       {createDoctorOpen && (
         <CreateAccountModal
+          admin={adminActor}
           approvedPis={approvedDoctors}
           onClose={() => setCreateDoctorOpen(false)}
           onCreated={flash}

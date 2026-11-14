@@ -3,6 +3,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { logUsage } from '../../analytics/usageLog';
+import { SpecializationOptions } from '../../components/SpecializationOptions';
 import { auth, db, firebaseConfigured } from '../../firebase';
 import { useAuthUser } from '../../hooks/useAuthUser';
 import {
@@ -74,6 +75,7 @@ export function LoginPage() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState(''); // private phone (every role)
   const [publicPhone, setPublicPhone] = useState(''); // PIs and doctors only
+  const [specialization, setSpecialization] = useState(''); // PIs and doctors only
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -189,7 +191,7 @@ export function LoginPage() {
         signedIn = cred.user;
         const phones = twoPhones ? { phone, publicPhone } : { phone };
         if (role === 'pi') {
-          await createDoctorProfile(signedIn.uid, email.trim(), name.trim(), facility, city, state, phones);
+          await createDoctorProfile(signedIn.uid, email.trim(), name.trim(), facility, city, state, phones, specialization);
         } else if (role === 'coordinator' && matchedDoctor) {
           await createCoordinatorProfile(
             signedIn.uid,
@@ -203,7 +205,13 @@ export function LoginPage() {
             phones,
           );
         } else {
-          await recordSignIn(signedIn, 'user', role === 'doctor' ? 'doctor' : 'individual', name);
+          await recordSignIn(
+            signedIn,
+            'user',
+            role === 'doctor' ? 'doctor' : 'individual',
+            name,
+            role === 'doctor' ? specialization : undefined,
+          );
           await saveUserPhones(signedIn.uid, phones);
         }
         logUsage('signup', 'email', role);
@@ -332,6 +340,20 @@ export function LoginPage() {
                     contact TrialWiz admin).
                   </div>
                 )}
+              </>
+            )}
+
+            {isSignup && twoPhones && (
+              <>
+                <label htmlFor="lspec">Specialization</label>
+                <input
+                  id="lspec"
+                  value={specialization}
+                  onChange={(e) => setSpecialization(e.target.value)}
+                  placeholder="e.g. Medical Oncology"
+                  list="specialization-options"
+                />
+                <SpecializationOptions />
               </>
             )}
 

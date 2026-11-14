@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { SpecializationOptions } from '../../components/SpecializationOptions';
+import type { AuditActor } from '../../services/audit';
 import { createAccountByAdmin, type NewAccountRole } from '../../services/profiles';
 import type { UserProfile } from '../../types';
 import './Admin.css';
@@ -11,6 +13,8 @@ const ROLE_OPTIONS: Array<{ key: NewAccountRole; label: string }> = [
 ];
 
 interface Props {
+  /** The signed-in admin — recorded as the authorizer of a new PI. */
+  admin: AuditActor;
   /** Approved PIs — a new trial coordinator must be placed under one of them. */
   approvedPis: UserProfile[];
   onClose: () => void;
@@ -18,13 +22,14 @@ interface Props {
 }
 
 /** Admin-only: creates an account of any role. Admin-created accounts are approved immediately. */
-export function CreateAccountModal({ approvedPis, onClose, onCreated }: Props) {
+export function CreateAccountModal({ admin, approvedPis, onClose, onCreated }: Props) {
   const [role, setRole] = useState<NewAccountRole>('pi');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [publicPhone, setPublicPhone] = useState('');
   const [privatePhone, setPrivatePhone] = useState('');
+  const [specialization, setSpecialization] = useState('');
   const [facility, setFacility] = useState('');
   const [city, setCity] = useState('');
   const [stateField, setStateField] = useState('');
@@ -59,6 +64,8 @@ export function CreateAccountModal({ approvedPis, onClose, onCreated }: Props) {
         city,
         state: stateField,
         supervisor,
+        admin,
+        specialization: twoPhones ? specialization : undefined,
         phones: twoPhones ? { publicPhone, phone: privatePhone } : { phone: privatePhone },
       });
       onCreated(`${roleLabel} account created for ${email.trim()} — approved and ready to sign in at /login.`);
@@ -180,6 +187,21 @@ export function CreateAccountModal({ approvedPis, onClose, onCreated }: Props) {
               />
             </div>
           </div>
+
+          {twoPhones && (
+            <div className="form-group">
+              <label htmlFor="acct-spec">Specialization</label>
+              <input
+                id="acct-spec"
+                value={specialization}
+                onChange={(e) => setSpecialization(e.target.value)}
+                placeholder="e.g. Medical Oncology, Radiation Oncology"
+                className="claim-input"
+                list="specialization-options"
+              />
+              <SpecializationOptions />
+            </div>
+          )}
 
           {twoPhones ? (
             <div className="form-row">

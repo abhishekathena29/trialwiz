@@ -5,6 +5,7 @@ import { auth } from '../../firebase';
 import { useClosedTrials } from '../../hooks/useClosedTrials';
 import { useTrialCatalogue } from '../../hooks/useTrialCatalogue';
 import { reopenTrial } from '../../services/closedTrials';
+import { subscribeHospitalPis } from '../../services/piAuthorization';
 import {
   approveCoordinator,
   rejectCoordinator,
@@ -18,6 +19,7 @@ import { groupByNctId, type GroupedTrial, type TrialLocation } from '../../utils
 import { AddTrialForm } from './AddTrialForm';
 import { ClaimTrialModal } from './ClaimTrialModal';
 import { CloseTrialModal } from './CloseTrialModal';
+import { HospitalPisSection } from './HospitalPisSection';
 import { MySubmittedTrials } from './MySubmittedTrials';
 import { PortalHeader } from './PortalHeader';
 import './Portal.css';
@@ -123,7 +125,7 @@ function ClaimDetails({
 
 type ClaimTarget = { trial: GroupedTrial; claim?: TrialClaim; defaultSiteKey?: string };
 
-type TabKey = 'hospital-trials' | 'claimed-trials' | 'closed-trials' | 'coordinators' | 'add-trial';
+type TabKey = 'hospital-trials' | 'claimed-trials' | 'closed-trials' | 'coordinators' | 'hospital-pis' | 'add-trial';
 
 export function DoctorDashboard({ user, profile }: { user: User; profile: UserProfile }) {
   const isDoctor = profile.role === 'doctor';
@@ -149,6 +151,13 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
   const closedTrials = useClosedTrials();
 
   useEffect(() => subscribeMyPrivateContacts(user.uid, setPrivateContacts), [user.uid]);
+
+  // Other PIs at this PI's hospital — they can authorize the pending ones.
+  const [hospitalPis, setHospitalPis] = useState<UserProfile[]>([]);
+  useEffect(() => {
+    if (isDoctor) return subscribeHospitalPis(profile.facility ?? '', setHospitalPis);
+  }, [isDoctor, profile.facility]);
+  const pendingHospitalPis = hospitalPis.filter((p) => p.uid !== user.uid && p.status === 'pending').length;
   // Only the public number is offered for trial contacts — the private one never goes public.
   useEffect(() => subscribeUserContact(user.uid, (c) => setMyPublicPhone(c?.publicPhone ?? '')), [user.uid]);
 
@@ -410,6 +419,15 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
               {pendingCoordinators.length > 0 && (
                 <span className="tab-pending-badge">{pendingCoordinators.length}</span>
               )}
+            </button>
+          )}
+          {isDoctor && (
+            <button
+              className={`portal-tab ${activeTab === 'hospital-pis' ? 'active' : ''}`}
+              onClick={() => setActiveTab('hospital-pis')}
+            >
+              🩺 Hospital PIs
+              {pendingHospitalPis > 0 && <span className="tab-pending-badge">{pendingHospitalPis}</span>}
             </button>
           )}
           <button
@@ -741,6 +759,12 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
         )}
 
         {/* TAB 3: COORDINATOR APPROVALS (DOCTORS ONLY) */}
+        {activeTab === 'hospital-pis' && isDoctor && (
+          <div className="tab-section">
+            <HospitalPisSection me={profile} hospitalPis={hospitalPis} />
+          </div>
+        )}
+
         {activeTab === 'coordinators' && isDoctor && (
           <div className="tab-section">
             <div className="sechead2" style={{ marginTop: 0 }}>
