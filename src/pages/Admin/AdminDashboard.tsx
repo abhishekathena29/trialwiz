@@ -42,6 +42,7 @@ import { countUniqueTrials, tallyByCancerType, tallyByCentre } from '../../utils
 import { AdminHeader } from './AdminHeader';
 import { ChangeRoleModal } from './ChangeRoleModal';
 import { CreateAccountModal } from './CreateAccountModal';
+import { DeleteAccountModal } from './DeleteAccountModal';
 
 const AUDIT_LABEL: Record<string, string> = {
   trial_closed: 'Trial closed',
@@ -50,6 +51,7 @@ const AUDIT_LABEL: Record<string, string> = {
   pi_authorized: 'PI authorized',
   team_member_decided: 'Team member approved / rejected',
   account_edited: 'Account edited',
+  account_deleted: 'Account deleted',
 };
 
 type PeopleTab = 'all' | 'pis' | 'trialDoctors' | 'coordinators' | 'history';
@@ -189,6 +191,7 @@ export function AdminDashboard({ user }: { user: User }) {
   const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
   const [peopleTab, setPeopleTab] = useState<PeopleTab>('all');
   const [editTarget, setEditTarget] = useState<UserProfile | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<UserProfile | null>(null);
   const [teamLog, setTeamLog] = useState<TeamApproval[]>([]);
   const [pendingSearch, setPendingSearch] = useState('');
   const closedTrials = useClosedTrials();
@@ -1273,7 +1276,7 @@ export function AdminDashboard({ user }: { user: User }) {
 
             <div className="sechead2">
               <h2>Audit trail</h2>
-              <span className="sup">Trial closures, reopenings, role changes, approvals and account edits — append-only, newest first</span>
+              <span className="sup">Trial closures, reopenings, role changes, approvals, account edits and deletions — append-only, newest first</span>
             </div>
             <div className="card full">
               {auditEntries.length === 0 ? (
@@ -1331,6 +1334,20 @@ export function AdminDashboard({ user }: { user: User }) {
           admin={adminActor}
           onClose={() => setEditTarget(null)}
           onSaved={flash}
+          onDelete={() => {
+            setDeleteTarget(editTarget);
+            setEditTarget(null);
+          }}
+        />
+      )}
+
+      {deleteTarget && (
+        <DeleteAccountModal
+          admin={adminActor}
+          account={deleteTarget}
+          approvedPis={approvedDoctors}
+          onClose={() => setDeleteTarget(null)}
+          onDeleted={flash}
         />
       )}
 

@@ -85,6 +85,11 @@ codebase:
   longer returns others. Trial search also matches the site investigator's name.
 - Admins can edit any account's name, hospital, city/state, specialization and phone numbers
   (audited); users can edit their own profile from the portal (a verified PI's hospital stays fixed).
+- Admins can **delete an account** (Edit → Delete account…). They first choose what happens to linked
+  coordinators (move to another PI or back to pending) and owned claims / submitted trials / added
+  locations (transfer or delete); then the profile, phones and saved trials are removed and a
+  `deletedAccounts` tombstone blocks sign-in. A browser can't delete another user's Firebase login,
+  so `npm run purge-deleted-accounts` (Admin SDK) erases those afterwards and frees the email.
 - Admins can change a PI into a Trial Coordinator (choosing the supervising PI) or promote a
   coordinator to PI from the Principal Investigator Accounts tab; both are audited.
 - Every public search is silently logged as one aggregate, de-identified event (cancer type,

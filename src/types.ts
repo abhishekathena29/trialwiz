@@ -260,7 +260,8 @@ export type AuditAction =
   | 'role_changed'
   | 'pi_authorized'
   | 'team_member_decided'
-  | 'account_edited';
+  | 'account_edited'
+  | 'account_deleted';
 
 /** One approve/reject decision on a trial coordinator, at `teamApprovals/{id}` —
  * append-only record of which PI (or admin) approved which team member, and when. */

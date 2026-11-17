@@ -14,6 +14,8 @@ interface Props {
   admin?: AuditActor;
   onClose: () => void;
   onSaved?: (message: string) => void;
+  /** Admin mode: opens the delete-account flow (shown as a danger button). */
+  onDelete?: () => void;
 }
 
 /** Which accounts have a clinical specialization and a public phone (PIs and doctors). */
@@ -22,7 +24,7 @@ function isClinician(a: UserProfile): boolean {
 }
 
 /** Edit an account's name, hospital, location, specialization and phone numbers. */
-export function EditAccountModal({ account, mode, admin, onClose, onSaved }: Props) {
+export function EditAccountModal({ account, mode, admin, onClose, onSaved, onDelete }: Props) {
   const [name, setName] = useState(account.name ?? '');
   const [facility, setFacility] = useState(account.facility ?? '');
   const [city, setCity] = useState(account.city ?? '');
@@ -210,6 +212,11 @@ export function EditAccountModal({ account, mode, admin, onClose, onSaved }: Pro
           {mode === 'admin' && <div className="note" style={{ marginTop: 12 }}>Changes are recorded in the audit trail.</div>}
 
           <div className="claim-actions" style={{ marginTop: 18 }}>
+            {mode === 'admin' && onDelete && account.role !== 'admin' && (
+              <button type="button" className="btn-danger" onClick={onDelete} disabled={busy}>
+                Delete account…
+              </button>
+            )}
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 10 }}>
               <button type="button" className="btn" onClick={onClose} disabled={busy}>
                 Cancel

@@ -3,6 +3,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { logUsage } from '../../analytics/usageLog';
+import { isAccountDeleted } from '../../services/accountDeletion';
 import { SpecializationOptions } from '../../components/SpecializationOptions';
 import { auth, db, firebaseConfigured } from '../../firebase';
 import { useAuthUser } from '../../hooks/useAuthUser';
@@ -238,6 +239,13 @@ export function LoginPage() {
       } else {
         const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
         signedIn = cred.user;
+        // Deleted by an admin, but the login lingers until purge-deleted-accounts runs — refuse it
+        // here, before recordSignIn could recreate a public profile for it.
+        if (await isAccountDeleted(signedIn.uid)) {
+          await signOut(auth);
+          setErr('This account has been removed by TrialWiz admin. Contact admin if you think this is a mistake.');
+          return;
+        }
         const dest = await destinationFor(signedIn);
         // Backfills a basic profile only for public accounts that predate profile records.
         await recordSignIn(signedIn, dest === '/' ? 'user' : dest === '/admin' ? 'admin' : undefined);
