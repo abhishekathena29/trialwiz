@@ -17,7 +17,7 @@ export function AdminHeader({ right }: { right?: ReactNode }) {
                 TrialWiz · Demand Intelligence
               </Link>
             </h1>
-            <p className="byline">by Dr. Veenoo Agarwal</p>
+            <p className="byline">by Dr. Veenoo Agarwal &amp; Yashika Agarwal</p>
             <p>What India is searching for — the feasibility signal, in aggregate</p>
           </div>
           {right && <div className="who">{right}</div>}

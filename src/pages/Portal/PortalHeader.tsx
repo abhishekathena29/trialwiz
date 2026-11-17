@@ -21,7 +21,7 @@ export function PortalHeader({
               {title}
             </Link>
           </h1>
-          <p className="byline">by Dr. Veenoo Agarwal</p>
+          <p className="byline">by Dr. Veenoo Agarwal &amp; Yashika Agarwal</p>
           <p>{subtitle}</p>
         </div>
         {right && <div className="who">{right}</div>}

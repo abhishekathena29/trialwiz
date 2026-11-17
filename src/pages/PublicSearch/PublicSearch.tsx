@@ -302,7 +302,7 @@ export function PublicSearch() {
                 TrialWiz&nbsp;·&nbsp;Trial Finder
               </Link>
             </h1>
-            <p className="byline">by Dr. Veenoo Agarwal</p>
+            <p className="byline">by Dr. Veenoo Agarwal &amp; Yashika Agarwal</p>
             <p>Recruiting cancer trials in India — plain language, near your patient</p>
           </div>
           <div className="headnav">
