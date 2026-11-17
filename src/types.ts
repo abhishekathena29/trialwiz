@@ -88,7 +88,29 @@ export interface DemandLogEvent {
   resultCount: number;
 }
 
+/** Provider-portal roles. 'doctor' is a Principal Investigator — or a Trial Team Doctor, which is
+ * the same account with every PI feature and only a different label (`UserProfile.piTitle`).
+ * Coordinators work under a PI, who approves them. Neither is a referring doctor, which is a
+ * public Trial Finder account (role 'user', userType 'doctor'). */
 export type UserRole = 'doctor' | 'coordinator';
+/** Label of a role-'doctor' account. Absent means 'pi'. */
+export type PiTitle = 'pi' | 'trialDoctor';
+/** Roles that work under a Principal Investigator. */
+export type TeamRole = 'coordinator';
+export const ROLE_LABEL: Record<string, string> = {
+  doctor: 'Principal Investigator',
+  coordinator: 'Trial Coordinator',
+  trialDoctor: 'Trial Team Doctor',
+  user: 'Public account',
+  admin: 'Admin',
+};
+
+/** Display label for any account — PI vs Trial Team Doctor, referring doctor vs individual. */
+export function accountLabel(p: Pick<UserProfile, 'role' | 'piTitle' | 'userType'>): string {
+  if (p.role === 'doctor') return p.piTitle === 'trialDoctor' ? ROLE_LABEL.trialDoctor : ROLE_LABEL.doctor;
+  if (p.role === 'user') return p.userType === 'doctor' ? 'Referring doctor' : 'Individual';
+  return ROLE_LABEL[p.role] ?? p.role;
+}
 /** Every signed-in account gets a `users/{uid}` doc: public Trial Finder accounts are 'user',
  * owner dashboard accounts are 'admin', provider-portal accounts are a `UserRole`. */
 export type AccountRole = UserRole | 'user' | 'admin';
@@ -110,6 +132,11 @@ export interface UserProfile {
   signInProvider?: string;
   /** Public Trial Finder accounts only: who the person said they are at sign-up. */
   userType?: PublicUserType;
+  /** Role 'doctor' only: shown as "Trial Team Doctor" instead of "Principal Investigator".
+   * Same permissions either way. */
+  piTitle?: PiTitle;
+  /** Set on PI accounts created in bulk from a trial registry (see scripts/create-pi-accounts.ts). */
+  importedFrom?: 'ctri';
   /** Doctors and PIs: clinical specialization, e.g. "Medical Oncology". */
   specialization?: string;
   /** Hospital / Institution name — used for doctors (Principal Investigators) and coordinators */
@@ -119,7 +146,7 @@ export interface UserProfile {
   /** Approval status: 'pending' | 'approved' | 'rejected'.
    * Doctors are approved by Admin; Coordinators are approved by their doctor. */
   status?: ApprovalStatus;
-  /** Coordinator-only fields. */
+  /** Team-member (coordinator / trial team doctor) fields: the PI they work under. */
   requestedDoctorEmail?: string;
   requestedDoctorName?: string;
   doctorUid?: string | null;
@@ -163,7 +190,14 @@ export interface TrialClaim {
   claimedByUid: string;
   claimedByName: string;
   claimedByRole: UserRole;
+  /** Display label of the claimant at claim time, e.g. "Trial Team Doctor". */
+  claimedByTitle?: string;
   claimedByEmail: string;
+  /** The PI whose team made the claim (the claimant themselves if a PI). Lets the PI, their
+   * coordinators and trial team doctors all see — and edit — the team's claims. Absent on older claims. */
+  teamPiUid?: string;
+  /** Last person to edit the claim, when it wasn't the claimant (a teammate). */
+  updatedByName?: string;
   /** Public contact phone/email. Empty when the PI chose to keep that field personal — the
    * personal value then lives in `claimPrivateContacts/{claimId}`, readable only by its owner. */
   contactPhone: string;
@@ -220,7 +254,47 @@ export interface ClosedTrial {
   closedAt: unknown;
 }
 
-export type AuditAction = 'trial_closed' | 'trial_reopened' | 'role_changed' | 'pi_authorized';
+export type AuditAction =
+  | 'trial_closed'
+  | 'trial_reopened'
+  | 'role_changed'
+  | 'pi_authorized'
+  | 'team_member_decided'
+  | 'account_edited';
+
+/** One approve/reject decision on a trial coordinator, at `teamApprovals/{id}` —
+ * append-only record of which PI (or admin) approved which team member, and when. */
+export interface TeamApproval {
+  id: string;
+  memberUid: string;
+  memberName: string;
+  memberEmail: string;
+  memberRole: TeamRole;
+  decision: 'approved' | 'rejected';
+  /** The PI the member works under (for admin-created members, the PI the admin picked). */
+  piUid: string;
+  piName: string;
+  hospital: string;
+  decidedByUid: string;
+  decidedByName: string;
+  decidedByEmail: string;
+  decidedByRole: 'admin' | 'pi';
+  decidedAt: unknown;
+}
+
+/** A location a PI or team member added to an existing trial, at `addedSites/{id}`. Stored in the
+ * `TrialSite` shape (study fields copied from the parent study) so it merges into the catalogue
+ * as one more site of that study, and can then be claimed like any registry site. */
+export interface AddedSite extends TrialSite {
+  id: string;
+  /** See `TrialClaim.teamPiUid`. */
+  teamPiUid?: string;
+  addedByUid: string;
+  addedByName: string;
+  addedByRole: UserRole | 'admin';
+  createdAt: unknown;
+  updatedAt?: unknown;
+}
 
 /** Append-only audit trail at `auditLog/{id}` — readable by admins only. */
 export interface AuditEntry {
@@ -240,6 +314,8 @@ export interface AuditEntry {
  * bookkeeping, so it merges into the public dataset with zero changes to display code. */
 export interface SubmittedTrial extends TrialSite {
   submittedBy: string;
+  /** See `TrialClaim.teamPiUid`. Absent on older submissions — `doctorUid` holds the same PI. */
+  teamPiUid?: string;
   submittedByName: string;
   doctorUid: string;
   createdAt: unknown;

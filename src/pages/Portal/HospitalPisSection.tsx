@@ -112,7 +112,10 @@ export function HospitalPisSection({ me, hospitalPis }: Props) {
           pending.map((p) => (
             <div className="reqrow" key={p.uid}>
               <div className="reqinfo">
-                <b>{p.name}</b>
+                <b>
+                  {p.name}
+                  {p.piTitle === 'trialDoctor' && <span className="pill"> Trial Team Doctor</span>}
+                </b>
                 <span>
                   {p.email}
                   {p.specialization && ` · ${p.specialization}`}
@@ -144,7 +147,10 @@ export function HospitalPisSection({ me, hospitalPis }: Props) {
           decided.map((p) => (
             <div className="reqrow" key={p.uid}>
               <div className="reqinfo">
-                <b>{p.name}</b>
+                <b>
+                  {p.name}
+                  {p.piTitle === 'trialDoctor' && <span className="pill"> Trial Team Doctor</span>}
+                </b>
                 <span>
                   {p.email}
                   {p.specialization && ` · ${p.specialization}`}

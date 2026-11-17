@@ -6,6 +6,7 @@ import {
   query,
   serverTimestamp,
   setDoc,
+  updateDoc,
   where,
 } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -66,6 +67,23 @@ export async function claimTrial(
       updatedAt: serverTimestamp(),
     }),
   );
+}
+
+/** Contact fields a teammate may change on someone else's claim. */
+export type TeammateClaimEdit = Partial<
+  Pick<TrialClaim, 'contactName' | 'contactPhone' | 'contactEmail' | 'department' | 'notes'>
+>;
+
+/**
+ * A member of the claimant's team (their PI, a fellow coordinator / trial team doctor) updates the
+ * claim's public contact details. The claim stays the claimant's; the editor is noted. Personal
+ * (non-public) contacts belong to the claimant alone and aren't touched.
+ */
+export async function updateClaimAsTeammate(claimId: string, edit: TeammateClaimEdit, editorName: string): Promise<void> {
+  const firestore = requireDb();
+  const patch: Record<string, unknown> = { updatedAt: serverTimestamp(), updatedByName: editorName };
+  for (const [k, v] of Object.entries(edit)) patch[k] = typeof v === 'string' ? v.trim() : '';
+  await updateDoc(doc(firestore, CLAIMS_COLLECTION, claimId), patch);
 }
 
 export async function unclaimTrial(claimId: string): Promise<void> {

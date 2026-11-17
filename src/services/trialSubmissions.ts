@@ -9,8 +9,10 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore';
+import { CITIES, matchCity } from '../data/cities';
 import { db } from '../firebase';
 import type { SubmittedTrial } from '../types';
+import type { SiteFields } from './addedSites';
 
 export const SUBMITTED_TRIALS_COLLECTION = 'submittedTrials';
 
@@ -54,6 +56,22 @@ export async function updateSubmittedTrial(nctId: string, patch: Partial<Submitt
   await updateDoc(doc(firestore, SUBMITTED_TRIALS_COLLECTION, nctId), patch);
 }
 
+/** Changes a submitted trial's location and contact details (the submitter or their PI's team). */
+export async function updateSubmittedTrialSite(nctId: string, f: SiteFields): Promise<void> {
+  const coords = CITIES[matchCity(f.city.trim())];
+  await updateDoc(doc(requireDb(), SUBMITTED_TRIALS_COLLECTION, nctId), {
+    facility: f.facility.trim(),
+    city: f.city.trim(),
+    state: f.state?.trim() ?? '',
+    lat: coords?.[0] ?? null,
+    lon: coords?.[1] ?? null,
+    contactName: f.contactName?.trim() ?? '',
+    contactPhone: f.contactPhone?.trim() ?? '',
+    contactEmail: f.contactEmail?.trim() ?? '',
+    lastUpdatePostDate: new Date().toISOString().slice(0, 10),
+  });
+}
+
 export async function retireSubmittedTrial(nctId: string): Promise<void> {
   await updateSubmittedTrial(nctId, { listingStatus: 'retired' });
 }
@@ -71,7 +89,14 @@ export function subscribePublishedTrials(onChange: (trials: SubmittedTrial[]) =>
   const q = query(collection(db, SUBMITTED_TRIALS_COLLECTION), where('listingStatus', '==', 'published'));
   return onSnapshot(
     q,
-    (snap) => onChange(snap.docs.map((d) => d.data() as SubmittedTrial)),
+    (snap) =>
+      onChange(
+        snap.docs.map((d) => {
+          const t = d.data() as SubmittedTrial;
+          // An edit clears unknown coordinates to null; TrialSite expects undefined.
+          return { ...t, lat: t.lat ?? undefined, lon: t.lon ?? undefined };
+        }),
+      ),
     (err) => {
       console.warn('[TrialWiz] submitted-trials subscription failed:', err);
       onChange([]);

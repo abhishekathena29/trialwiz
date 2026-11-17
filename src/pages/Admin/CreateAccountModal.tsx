@@ -8,6 +8,7 @@ import './Admin.css';
 const ROLE_OPTIONS: Array<{ key: NewAccountRole; label: string }> = [
   { key: 'pi', label: 'Principal Investigator' },
   { key: 'coordinator', label: 'Trial Coordinator' },
+  { key: 'trialDoctor', label: 'Trial Team Doctor' },
   { key: 'doctor', label: 'Doctor' },
   { key: 'individual', label: 'Individual' },
 ];
@@ -38,7 +39,11 @@ export function CreateAccountModal({ admin, approvedPis, onClose, onCreated }: P
   const [err, setErr] = useState('');
 
   const supervisor = approvedPis.find((d) => d.uid === supervisorUid);
-  const twoPhones = role === 'pi' || role === 'doctor';
+  /** Works under a PI. */
+  const isTeam = role === 'coordinator';
+  /** PI or Trial Team Doctor — same account and features, different label. */
+  const isPiLike = role === 'pi' || role === 'trialDoctor';
+  const twoPhones = isPiLike || role === 'doctor';
   const roleLabel = ROLE_OPTIONS.find((r) => r.key === role)!.label;
 
   const canSubmit =
@@ -46,8 +51,8 @@ export function CreateAccountModal({ admin, approvedPis, onClose, onCreated }: P
     name.trim().length > 0 &&
     email.trim().length > 0 &&
     password.length >= 6 &&
-    (role !== 'pi' || facility.trim().length > 0) &&
-    (role !== 'coordinator' || Boolean(supervisor));
+    (!isPiLike || facility.trim().length > 0) &&
+    (!isTeam || Boolean(supervisor));
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -113,7 +118,7 @@ export function CreateAccountModal({ admin, approvedPis, onClose, onCreated }: P
             </select>
           </div>
 
-          {role === 'coordinator' && (
+          {isTeam && (
             <div className="form-group">
               <label htmlFor="acct-supervisor">
                 Works under (Principal Investigator) <span className="req">*</span>
@@ -149,7 +154,7 @@ export function CreateAccountModal({ admin, approvedPis, onClose, onCreated }: P
               id="acct-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder={role === 'pi' || role === 'doctor' ? 'Dr. Firstname Lastname' : 'Firstname Lastname'}
+              placeholder={twoPhones ? 'Dr. Firstname Lastname' : 'Firstname Lastname'}
               className="claim-input"
               required
             />
@@ -208,7 +213,7 @@ export function CreateAccountModal({ admin, approvedPis, onClose, onCreated }: P
               <div className="form-group half">
                 <label htmlFor="acct-pubphone">Public phone</label>
                 <span className="field-hint">
-                  {role === 'pi' ? 'Shown as the contact on trials they claim.' : 'May be shown publicly.'}
+                  {role === 'doctor' ? 'May be shown publicly.' : 'Shown as the contact on trials they claim.'}
                 </span>
                 <input
                   id="acct-pubphone"
@@ -250,13 +255,13 @@ export function CreateAccountModal({ admin, approvedPis, onClose, onCreated }: P
             </div>
           )}
 
-          {(role === 'pi' || role === 'coordinator') && (
+          {(isPiLike || isTeam) && (
             <>
               <div className="form-group">
                 <label htmlFor="acct-facility">
-                  Hospital / Institution {role === 'pi' && <span className="req">*</span>}
+                  Hospital / Institution {isPiLike && <span className="req">*</span>}
                 </label>
-                {role === 'coordinator' && (
+                {isTeam && (
                   <span className="field-hint">Leave blank to use the Principal Investigator's hospital.</span>
                 )}
                 <input
@@ -265,7 +270,7 @@ export function CreateAccountModal({ admin, approvedPis, onClose, onCreated }: P
                   onChange={(e) => setFacility(e.target.value)}
                   placeholder={supervisor?.facility || 'e.g. AIIMS New Delhi, Tata Memorial Centre'}
                   className="claim-input"
-                  required={role === 'pi'}
+                  required={isPiLike}
                 />
               </div>
               <div className="form-row">
@@ -296,7 +301,8 @@ export function CreateAccountModal({ admin, approvedPis, onClose, onCreated }: P
           <div className="note" style={{ marginTop: 12 }}>
             <b>Auto-approved.</b> Share the email and initial password with the user — they sign in at{' '}
             <code>/login</code> and land on the right page for their role.
-            {role === 'coordinator' && ' The coordinator is linked to the chosen PI straight away; no PI approval needed.'}
+            {isTeam && ' They are linked to the chosen PI straight away (no PI approval needed) and the approval is logged.'}
+            {role === 'trialDoctor' && ' A Trial Team Doctor has every Principal Investigator feature — only the label differs.'}
           </div>
 
           <div className="claim-actions" style={{ marginTop: 18 }}>

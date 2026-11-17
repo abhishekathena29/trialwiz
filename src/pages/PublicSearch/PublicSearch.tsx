@@ -250,7 +250,8 @@ export function PublicSearch() {
       if (filters.line !== 'any' && r.lineOfTherapy !== filters.line) return false;
       if (filters.other) {
         const lc = filters.other.toLowerCase();
-        const hay = `${r.briefTitle} ${r.briefSummary ?? ''} ${r.conditions.join(' ')} ${r.cancerType} ${r.facility} ${r.city} ${r.nctId}`.toLowerCase();
+        // contactName = the site's investigator, so a trial can be found by its doctor's name.
+        const hay = `${r.briefTitle} ${r.briefSummary ?? ''} ${r.conditions.join(' ')} ${r.cancerType} ${r.facility} ${r.city} ${r.contactName ?? ''} ${r.nctId}`.toLowerCase();
         if (!hay.includes(lc)) return false;
       }
       return true;

@@ -1,12 +1,13 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import type { UserProfile } from '../../types';
+import { accountLabel, type UserProfile } from '../../types';
 import { matchesSearch } from '../../utils/search';
 import { formatTimestamp, timestampMs } from '../../utils/timestamps';
 
-type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected' | 'doctor';
+type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected' | 'doctor' | 'trialDoctor' | 'pi';
+type TypeFilter = 'all' | 'pi' | 'trialDoctor' | 'doctor';
 
-/** Principal Investigators (role 'doctor') need verification; referring doctors (public
- * accounts with userType 'doctor') don't. */
+/** PIs and Trial Team Doctors (role 'doctor') need admin / same-hospital PI verification;
+ * referring doctors (public accounts with userType 'doctor') need none. */
 function statusOf(d: UserProfile): { label: string; cls: string; key: StatusFilter } {
   if (d.role !== 'doctor') return { label: 'No verification needed', cls: '', key: 'doctor' };
   if (d.status === 'approved') return { label: 'Verified', cls: 'approved', key: 'approved' };
@@ -14,31 +15,41 @@ function statusOf(d: UserProfile): { label: string; cls: string; key: StatusFilt
   return { label: 'Pending', cls: 'pending', key: 'pending' };
 }
 
+function typeOf(d: UserProfile): TypeFilter {
+  if (d.role !== 'doctor') return 'doctor';
+  return d.piTitle === 'trialDoctor' ? 'trialDoctor' : 'pi';
+}
+
 function authorizedBy(d: UserProfile): string {
   if (d.role !== 'doctor' || d.status !== 'approved') return '—';
+  if (d.importedFrom === 'ctri' && d.authorizedByRole === 'admin') return 'Admin · bulk import from CTRI';
   if (!d.authorizedByRole) return 'Admin (before history was kept)';
   const who = d.authorizedByRole === 'admin' ? 'Admin' : `PI · ${d.authorizedByName ?? ''}`;
   return d.authorizedAt ? `${who} · ${formatTimestamp(d.authorizedAt)}` : who;
 }
 
 interface Props {
-  /** Every PI profile plus every referring-doctor account. */
+  /** Every PI / Trial Team Doctor profile and referring-doctor account. */
   doctors: UserProfile[];
   phoneOf: (uid: string) => ReactNode;
+  onEdit?: (account: UserProfile) => void;
 }
 
-/** Admin: every doctor who has an account — PIs (pending, verified, rejected) and referring doctors. */
-export function AllDoctorsSection({ doctors, phoneOf }: Props) {
+/** Admin: every doctor who has an account — PIs (pending, verified, rejected), trial team doctors
+ * and referring doctors. */
+export function AllDoctorsSection({ doctors, phoneOf, onEdit }: Props) {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
+  const [type, setType] = useState<TypeFilter>('all');
 
   const rows = useMemo(
     () =>
       doctors
         .filter((d) => status === 'all' || statusOf(d).key === status)
-        .filter((d) => matchesSearch(search, [d.name, d.email, d.facility, d.specialization, d.city]))
+        .filter((d) => type === 'all' || typeOf(d) === type)
+        .filter((d) => matchesSearch(search, [d.name, d.email, d.facility, d.specialization, d.city, d.requestedDoctorName]))
         .sort((a, b) => (timestampMs(b.createdAt) ?? 0) - (timestampMs(a.createdAt) ?? 0)),
-    [doctors, search, status],
+    [doctors, search, status, type],
   );
 
   return (
@@ -46,7 +57,8 @@ export function AllDoctorsSection({ doctors, phoneOf }: Props) {
       <div className="sechead2">
         <h2>All Registered Doctors ({doctors.length})</h2>
         <span className="sup">
-          Every doctor with an account — Principal Investigators (pending, verified or rejected) and referring doctors
+          Every doctor with an account — Principal Investigators and Trial Team Doctors (pending, verified or rejected)
+          and referring doctors
         </span>
       </div>
       <div className="card full">
@@ -66,9 +78,19 @@ export function AllDoctorsSection({ doctors, phoneOf }: Props) {
             aria-label="Filter by status"
           >
             <option value="all">All statuses</option>
-            <option value="pending">Pending PIs</option>
-            <option value="approved">Verified PIs</option>
-            <option value="rejected">Rejected PIs</option>
+            <option value="pending">Pending verification</option>
+            <option value="approved">Verified</option>
+            <option value="rejected">Rejected</option>
+          </select>
+          <select
+            className="claim-select"
+            value={type}
+            onChange={(e) => setType(e.target.value as TypeFilter)}
+            aria-label="Filter by account type"
+          >
+            <option value="all">All types</option>
+            <option value="pi">Principal Investigators</option>
+            <option value="trialDoctor">Trial Team Doctors</option>
             <option value="doctor">Referring doctors</option>
           </select>
         </div>
@@ -88,6 +110,7 @@ export function AllDoctorsSection({ doctors, phoneOf }: Props) {
                   <th>Registered</th>
                   <th>Status</th>
                   <th>Authorized by</th>
+                  {onEdit && <th />}
                 </tr>
               </thead>
               <tbody>
@@ -98,7 +121,7 @@ export function AllDoctorsSection({ doctors, phoneOf }: Props) {
                       <td>
                         <b>{d.name}</b>
                       </td>
-                      <td>{d.role === 'doctor' ? 'Principal Investigator' : 'Doctor'}</td>
+                      <td>{accountLabel(d)}</td>
                       <td>{d.facility || '—'}</td>
                       <td>{d.specialization || '—'}</td>
                       <td>
@@ -108,6 +131,13 @@ export function AllDoctorsSection({ doctors, phoneOf }: Props) {
                       <td>{formatTimestamp(d.createdAt)}</td>
                       <td>{st.cls ? <span className={`pill ${st.cls}`}>{st.label}</span> : <span className="sup">{st.label}</span>}</td>
                       <td>{authorizedBy(d)}</td>
+                      {onEdit && (
+                        <td style={{ textAlign: 'right' }}>
+                          <button className="btn" style={{ padding: '4px 10px', fontSize: 11.5 }} onClick={() => onEdit(d)}>
+                            Edit
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}

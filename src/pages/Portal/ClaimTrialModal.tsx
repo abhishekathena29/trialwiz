@@ -1,6 +1,14 @@
 import { useState } from 'react';
-import { claimMatchesSite, claimTrial, makeClaimId, savePrivateContact, unclaimTrial } from '../../services/trialClaims';
-import type { ClaimPrivateContact, ContactVisibility, TrialClaim, UserProfile } from '../../types';
+import { teamPiUidOf } from '../../services/addedSites';
+import {
+  claimMatchesSite,
+  claimTrial,
+  makeClaimId,
+  savePrivateContact,
+  unclaimTrial,
+  updateClaimAsTeammate,
+} from '../../services/trialClaims';
+import { ROLE_LABEL, accountLabel, type ClaimPrivateContact, type ContactVisibility, type TrialClaim, type UserProfile } from '../../types';
 import type { GroupedTrial, TrialLocation } from '../../utils/groupTrials';
 import './Portal.css';
 
@@ -74,7 +82,11 @@ export function ClaimTrialModal({
       (existingClaim ? '' : (defaultSiteKey ?? trial.sites.find((s) => !claimedByOther(s))?.key ?? '')),
   );
   const site = trial.sites.find((s) => s.key === siteKey);
-  const hospitalName = (profile.facility ?? '').trim();
+  // A teammate (the claimant's PI, or a fellow coordinator / trial team doctor) can keep the
+  // claim's public contact details current, but the claim — and any personal contact — stays the
+  // claimant's.
+  const isTeammateEdit = Boolean(existingClaim && existingClaim.claimedByUid !== profile.uid);
+  const hospitalName = (isTeammateEdit ? existingClaim?.hospitalName : profile.facility ?? '')?.trim() ?? '';
 
   // Personal values aren't on the public claim doc — they come from the owner-only private doc.
   const existingPhone = existingClaim?.contactPhone || privateContact?.contactPhone || '';
@@ -118,19 +130,51 @@ export function ClaimTrialModal({
   const resolvedPhone =
     selectedPhoneOption === 'custom' ? customPhone.trim() : selectedPhoneOption.trim();
   const locationOk = Boolean(existingClaim || (site && !claimedByOther(site)));
+  // On a teammate edit, a field the claimant kept personal is locked (it's not on the public doc).
+  const phoneLocked = isTeammateEdit && phoneVisibility === 'personal';
+  const emailLocked = isTeammateEdit && emailVisibility === 'personal';
   const canSave =
     !busy &&
-    confirmed &&
+    (confirmed || isTeammateEdit) &&
     locationOk &&
     hospitalName.length > 0 &&
-    resolvedPhone.length >= 7 &&
-    contactEmail.trim().length > 0;
+    (phoneLocked || resolvedPhone.length >= 7) &&
+    (emailLocked || contactEmail.trim().length > 0);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (!canSave) return;
     setBusy(true);
     setErr('');
+    if (isTeammateEdit && existingClaim) {
+      try {
+        await updateClaimAsTeammate(
+          existingClaim.id,
+          {
+            contactName,
+            ...(phoneLocked ? {} : { contactPhone: resolvedPhone }),
+            ...(emailLocked ? {} : { contactEmail }),
+            department,
+            notes,
+          },
+          profile.name,
+        );
+        onSuccess?.();
+        onClose();
+      } catch (e) {
+        console.error('[TrialWiz] teammate claim edit error:', e);
+        setErr(
+          e instanceof Error && /permission/i.test(e.message)
+            ? 'Not permitted — only the claimant and their Principal Investigator’s team can edit this claim.'
+            : e instanceof Error
+              ? e.message
+              : 'Failed to update the claim.',
+        );
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     try {
       // Legacy claims may point at a site no longer in the registry feed — keep their stored location.
       const facility = site?.facility ?? existingClaim?.facility ?? '';
@@ -149,7 +193,9 @@ export function ClaimTrialModal({
         claimedByUid: profile.uid,
         claimedByName: profile.name,
         claimedByRole: profile.role === 'doctor' ? 'doctor' : 'coordinator',
+        claimedByTitle: accountLabel(profile),
         claimedByEmail: profile.email,
+        teamPiUid: existingClaim?.teamPiUid ?? teamPiUidOf(profile),
         // Personal fields are left blank on the public doc; public pages then fall back to the
         // registry's own site contact.
         contactPhone: phoneVisibility === 'public' ? resolvedPhone : '',
@@ -200,9 +246,19 @@ export function ClaimTrialModal({
         <div className="claim-modal-head">
           <div>
             <span className="claim-badge-role">
-              {profile.role === 'doctor' ? 'Principal Investigator Verification' : 'Clinical Study Team Claim'}
+              {isTeammateEdit
+                ? 'Team Edit'
+                : profile.role === 'doctor'
+                  ? `${accountLabel(profile)} Verification`
+                  : 'Clinical Study Team Claim'}
             </span>
-            <h2>{existingClaim ? 'Manage Trial Claim' : 'Claim this Clinical Trial'}</h2>
+            <h2>{isTeammateEdit ? 'Edit Team Claim' : existingClaim ? 'Manage Trial Claim' : 'Claim this Clinical Trial'}</h2>
+            {isTeammateEdit && existingClaim && (
+              <p className="claim-sub">
+                Claimed by {existingClaim.claimedByName} ({existingClaim.claimedByTitle ?? ROLE_LABEL[existingClaim.claimedByRole] ?? existingClaim.claimedByRole}) —
+                you can update its public contact details as part of the same trial team.
+              </p>
+            )}
             <p className="claim-sub">
               {trial.nctId}
               {trial.sites.length > 1 ? ` · runs at ${trial.sites.length} locations` : ''}
@@ -281,8 +337,8 @@ export function ClaimTrialModal({
             <input id="claim-hospital" className="claim-input" value={hospitalName || 'Hospital not set on your profile'} readOnly disabled />
           </div>
 
-          {/* Checkbox confirmation */}
-          <div className="claim-confirm-card">
+          {/* Checkbox confirmation — the claimant's; a teammate edit doesn't re-confirm it */}
+          {!isTeammateEdit && <div className="claim-confirm-card">
             <label className="checkbox-label">
               <input
                 type="checkbox"
@@ -295,7 +351,7 @@ export function ClaimTrialModal({
                 for this clinical trial at <b>{site ? siteLabel(site) : existingClaim?.facility ?? 'the selected location'}</b>.
               </span>
             </label>
-          </div>
+          </div>}
 
           {/* Contact Phone Number: Dropdown + Custom */}
           <div className="form-group">
@@ -305,6 +361,9 @@ export function ClaimTrialModal({
             <span className="field-hint">
               Select an existing contact phone for your site or enter a new direct line for patient and oncologist inquiries.
             </span>
+            {phoneLocked ? (
+              <input className="claim-input" value="Kept personal by the claimant — not shown publicly" readOnly disabled />
+            ) : (<>
             <select
               id="claim-phone-select"
               value={selectedPhoneOption}
@@ -340,11 +399,14 @@ export function ClaimTrialModal({
                 required
               />
             )}
-            <VisibilityToggle value={phoneVisibility} onChange={setPhoneVisibility} label="Phone" />
+            </>)}
+            {!isTeammateEdit && <VisibilityToggle value={phoneVisibility} onChange={setPhoneVisibility} label="Phone" />}
             <span className="field-hint" style={{ marginTop: 4 }}>
               {phoneVisibility === 'public'
                 ? 'Shown to patients and doctors on the public Trial Finder.'
-                : 'Personal — saved for you only. The public listing keeps showing the registry contact.'}
+                : isTeammateEdit
+                  ? 'Only the claimant can change a personal number.'
+                  : 'Personal — saved for you only. The public listing keeps showing the registry contact.'}
             </span>
           </div>
 
@@ -369,13 +431,14 @@ export function ClaimTrialModal({
               <input
                 id="claim-contact-email"
                 type="email"
-                value={contactEmail}
+                value={emailLocked ? '' : contactEmail}
                 onChange={(e) => setContactEmail(e.target.value)}
-                placeholder="pi@hospital.org"
+                placeholder={emailLocked ? 'Kept personal by the claimant' : 'pi@hospital.org'}
                 className="claim-input"
-                required
+                disabled={emailLocked}
+                required={!emailLocked}
               />
-              <VisibilityToggle value={emailVisibility} onChange={setEmailVisibility} label="Email" />
+              {!isTeammateEdit && <VisibilityToggle value={emailVisibility} onChange={setEmailVisibility} label="Email" />}
             </div>
           </div>
 
@@ -403,7 +466,7 @@ export function ClaimTrialModal({
           </div>
 
           <div className="claim-actions">
-            {existingClaim && (
+            {existingClaim && !isTeammateEdit && (
               <button
                 type="button"
                 className="btn-danger"

@@ -20,9 +20,10 @@ import '../Admin/Admin.css';
 import '../Portal/Portal.css';
 import { PortalHeader } from '../Portal/PortalHeader';
 
-/** The four account types offered on the one login page. Individuals and referring doctors get
- * a public Trial Finder account (role 'user'); PIs and coordinators get a provider account. */
-export type LoginRole = 'individual' | 'doctor' | 'pi' | 'coordinator';
+/** The account types offered on the one login page. Individuals and referring doctors get a
+ * public Trial Finder account (role 'user'); PIs, coordinators and trial team doctors get a
+ * provider account. */
+export type LoginRole = 'individual' | 'doctor' | 'pi' | 'coordinator' | 'trialDoctor';
 
 const ROLES: Array<{ key: LoginRole; label: string; hint: string }> = [
   { key: 'individual', label: 'Individual', hint: 'Patient, family member or caregiver — save trials to review later.' },
@@ -37,10 +38,15 @@ const ROLES: Array<{ key: LoginRole; label: string; hint: string }> = [
     label: 'Trial Coordinator',
     hint: "Works under a Principal Investigator — your PI approves your account before you can manage trials.",
   },
+  {
+    key: 'trialDoctor',
+    label: 'Trial Team Doctor',
+    hint: 'A doctor on a hospital trial team. Same features as a Principal Investigator — claim and close trials, publish contacts, approve coordinators. Verified by TrialWiz admin.',
+  },
 ];
 
 function isLoginRole(v: string | null): v is LoginRole {
-  return v === 'individual' || v === 'doctor' || v === 'pi' || v === 'coordinator';
+  return v === 'individual' || v === 'doctor' || v === 'pi' || v === 'coordinator' || v === 'trialDoctor';
 }
 
 /** Where a signed-in account belongs, decided by what it actually is — not by the role picked
@@ -89,13 +95,17 @@ export function LoginPage() {
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const isProvider = role === 'pi' || role === 'coordinator';
-  const twoPhones = role === 'pi' || role === 'doctor';
+  /** Works under a PI, who approves them. */
+  const isTeam = role === 'coordinator';
+  /** PI or Trial Team Doctor — the same kind of account, only the label differs. */
+  const isPiLike = role === 'pi' || role === 'trialDoctor';
+  const isProvider = isPiLike || isTeam;
+  const twoPhones = role === 'pi' || role === 'doctor' || role === 'trialDoctor';
 
-  // Coordinator sign-up: look up the named PI and pre-fill their hospital.
+  // Team-member sign-up: look up the named PI and pre-fill their hospital.
   useEffect(() => {
     const clean = doctorEmail.trim().toLowerCase();
-    if (role !== 'coordinator' || mode !== 'signup' || !clean.includes('@') || !clean.includes('.')) {
+    if (!isTeam || mode !== 'signup' || !clean.includes('@') || !clean.includes('.')) {
       void Promise.resolve().then(() => {
         setMatchedDoctor(null);
         setDoctorSearchAttempted(false);
@@ -126,12 +136,12 @@ export function LoginPage() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [doctorEmail, role, mode]);
+  }, [doctorEmail, isTeam, mode]);
 
   if (!firebaseConfigured || !auth) {
     return (
       <div className="tw-admin">
-        <PortalHeader title="TrialWiz · Log in" subtitle="One login for individuals, doctors, Principal Investigators and trial coordinators" />
+        <PortalHeader title="TrialWiz · Log in" subtitle="One login for individuals, doctors, Principal Investigators and trial teams" />
         <div className="login-wrap">
           <div className="setup-note">
             <b>Firebase isn't configured yet.</b> Sign-in needs Firebase Auth + Firestore — see <code>README.md</code>.
@@ -146,7 +156,7 @@ export function LoginPage() {
   if (!authLoading && user && !busy) {
     return (
       <div className="tw-admin">
-        <PortalHeader title="TrialWiz · Log in" subtitle="One login for individuals, doctors, Principal Investigators and trial coordinators" />
+        <PortalHeader title="TrialWiz · Log in" subtitle="One login for individuals, doctors, Principal Investigators and trial teams" />
         <div className="login-wrap">
           <div className="login-card">
             <h1>You're signed in</h1>
@@ -172,7 +182,7 @@ export function LoginPage() {
     role === 'individual' || role === 'doctor'
       ? true
       : name.trim().length > 0 &&
-        (role === 'pi' ? facility.trim().length > 0 : doctorEmail.trim().length > 0 && matchedDoctor !== null);
+        (isPiLike ? facility.trim().length > 0 : doctorEmail.trim().length > 0 && matchedDoctor !== null);
   const canSubmit =
     !busy &&
     email.trim().length > 0 &&
@@ -190,9 +200,19 @@ export function LoginPage() {
         const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
         signedIn = cred.user;
         const phones = twoPhones ? { phone, publicPhone } : { phone };
-        if (role === 'pi') {
-          await createDoctorProfile(signedIn.uid, email.trim(), name.trim(), facility, city, state, phones, specialization);
-        } else if (role === 'coordinator' && matchedDoctor) {
+        if (isPiLike) {
+          await createDoctorProfile(
+            signedIn.uid,
+            email.trim(),
+            name.trim(),
+            facility,
+            city,
+            state,
+            phones,
+            specialization,
+            role === 'trialDoctor' ? 'trialDoctor' : 'pi',
+          );
+        } else if (isTeam && matchedDoctor) {
           await createCoordinatorProfile(
             signedIn.uid,
             email.trim(),
@@ -239,7 +259,7 @@ export function LoginPage() {
 
   return (
     <div className="tw-admin">
-      <PortalHeader title="TrialWiz · Log in" subtitle="One login for individuals, doctors, Principal Investigators and trial coordinators" />
+      <PortalHeader title="TrialWiz · Log in" subtitle="One login for individuals, doctors, Principal Investigators and trial teams" />
       <div className="login-wrap portal-auth-wrap">
         <div className="login-card">
           <h1>{isSignup ? 'Create an account' : 'Log in to TrialWiz'}</h1>
@@ -289,7 +309,7 @@ export function LoginPage() {
               </>
             )}
 
-            {mode === 'signup' && role === 'pi' && (
+            {mode === 'signup' && isPiLike && (
               <>
                 <label htmlFor="lfacility">Hospital / Institution name</label>
                 <input
@@ -312,10 +332,12 @@ export function LoginPage() {
               </>
             )}
 
-            {mode === 'signup' && role === 'coordinator' && (
+            {mode === 'signup' && isTeam && (
               <>
                 <label htmlFor="ldocemail">Your Principal Investigator's email</label>
-                <span className="field-hint">Your PI must already have a verified TrialWiz account — they approve you.</span>
+                <span className="field-hint">
+                  Your PI must already have a verified TrialWiz account — they approve you, and the approval is recorded.
+                </span>
                 <input
                   id="ldocemail"
                   type="email"
@@ -368,7 +390,7 @@ export function LoginPage() {
                   placeholder="e.g. clinic / trial unit number"
                 />
                 <span className="field-hint">
-                  {role === 'pi'
+                  {role === 'pi' || role === 'trialDoctor'
                     ? 'Shown to patients and doctors as the contact number on the trials you claim.'
                     : 'A number you are happy to share publicly.'}
                 </span>
@@ -450,10 +472,11 @@ export function LoginPage() {
               {mode === 'signup' ? 'Already have an account? Log in' : 'New here? Create an account'}
             </button>
           </p>
-          {role === 'pi' && mode === 'signup' && (
+          {isPiLike && mode === 'signup' && (
             <p className="login-foot">
-              Self-registered Principal Investigator accounts are verified by TrialWiz admin before you can claim
-              trials. If admin already created your account, just sign in.
+              Your account is saved straight away and verified by TrialWiz admin — or by a verified Principal
+              Investigator at your own hospital — before you can claim trials. If admin already created your account,
+              just sign in.
             </p>
           )}
         </div>

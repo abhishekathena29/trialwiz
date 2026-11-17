@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "seed:registry": "tsx scripts/seed-registry.ts",
-    "create-admin": "tsx scripts/create-admin.ts"
+    "create-admin": "tsx scripts/create-admin.ts",
+    "create-pi-accounts": "tsx scripts/create-pi-accounts.ts"
   },
   "dependencies": {
     "firebase": "^12.17.1",

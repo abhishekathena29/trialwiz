@@ -114,6 +114,7 @@ export function AddTrialForm({ user, profile, onSubmitted }: { user: User; profi
         submittedBy: user.uid,
         submittedByName: profile.name,
         doctorUid: resolvedDoctorUid,
+        teamPiUid: resolvedDoctorUid,
       });
       setDone(true);
       setBriefTitle('');

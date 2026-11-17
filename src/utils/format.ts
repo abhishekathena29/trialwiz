@@ -36,13 +36,13 @@ export function telHref(phone: string | undefined): string {
  * slash, drop site numbers and IDs, drop generic institutional words and the row's own
  * city name — collapse those to one key without a hardcoded alias table. */
 
-const GENERIC_WORDS = new Set([
+export const GENERIC_WORDS = new Set([
   'hospital', 'hospitals', 'centre', 'center', 'institute', 'institution', 'medical',
   'college', 'research', 'national', 'foundation', 'trust', 'clinic', 'clinics', 'memorial',
   'cancer', 'of', 'and', 'the', 'india', 'site', 'unit', 'branch', 'department', 'dept', 'block', 'ward',
 ]);
 
-function stripDiacritics(s: string): string {
+export function stripDiacritics(s: string): string {
   // \p{M} matches any Unicode combining mark (accents, diacritics) left behind by NFKD
   // decomposition — e.g. "ā" -> "a" + a combining macron, which this then drops.
   return s.normalize('NFKD').replace(/\p{M}/gu, '');
@@ -56,7 +56,7 @@ function leadingSegment(s: string): string {
   return m ? m[0] : s;
 }
 
-function words(s: string): string[] {
+export function words(s: string): string[] {
   return stripDiacritics(s)
     .toLowerCase()
     .replace(/[^a-z\s]/g, ' ')

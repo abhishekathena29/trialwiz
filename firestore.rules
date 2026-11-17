@@ -35,7 +35,8 @@ service cloud.firestore {
 
     // Doctor / trial-coordinator provider portal (/portal). A user always reads/creates/
     // updates their own profile; admins can read and update all profiles for verification;
-    // a doctor may additionally read (and approve/reject) coordinator profiles that named their email.
+    // a PI (or Trial Team Doctor — same account, role 'doctor') may additionally read (and
+    // approve/reject) coordinator profiles that named their email.
     match /users/{uid} {
       allow read: if resource.data.role == 'doctor' || (request.auth != null && (
         request.auth.uid == uid ||
@@ -51,11 +52,15 @@ service cloud.firestore {
     // Trials submitted by an approved coordinator or doctor, in the same TrialSite shape
     match /submittedTrials/{id} {
       allow read: if true;
-      allow create: if (isApprovedCoordinator() || isApprovedDoctor() || isAdmin()) &&
+      allow create: if (isApprovedTeamMember() || isApprovedDoctor() || isAdmin()) &&
         request.resource.data.submittedBy == request.auth.uid &&
         request.resource.data.nctId == id &&
         request.resource.data.listingStatus == 'published';
-      allow update: if (request.auth != null && resource.data.submittedBy == request.auth.uid) || isAdmin();
+      // The submitter, anyone on the same PI's team, or an admin may edit — never re-assign it.
+      allow update: if isAdmin() || (request.auth != null &&
+        request.resource.data.submittedBy == resource.data.submittedBy &&
+        request.resource.data.nctId == resource.data.nctId &&
+        (resource.data.submittedBy == request.auth.uid || sameTeamAs(resource.data.submittedBy)));
       allow delete: if isAdmin();
     }
 
@@ -70,9 +75,16 @@ service cloud.firestore {
     // Publicly readable so verified investigator contact info is shown on public trial search.
     match /trialClaims/{claimId} {
       allow read: if true;
-      allow create: if (isApprovedDoctor() || isApprovedCoordinator() || isAdmin()) &&
+      allow create: if (isApprovedDoctor() || isApprovedTeamMember() || isAdmin()) &&
         request.resource.data.claimedByUid == request.auth.uid;
-      allow update: if (request.auth != null && resource.data.claimedByUid == request.auth.uid) || isAdmin();
+      // The claimant, anyone on the same PI's team (to keep contact details current), or an admin.
+      // A teammate's edit can't move the claim to someone else.
+      allow update: if isAdmin() || (request.auth != null && (
+        resource.data.claimedByUid == request.auth.uid ||
+        (request.resource.data.claimedByUid == resource.data.claimedByUid &&
+         request.resource.data.nctId == resource.data.nctId &&
+         request.resource.data.facility == resource.data.facility &&
+         sameTeamAs(resource.data.claimedByUid))));
       allow delete: if (request.auth != null && resource.data.claimedByUid == request.auth.uid) || isAdmin();
     }
 
@@ -108,14 +120,57 @@ service cloud.firestore {
       allow delete: if isAdmin() || (isApprovedDoctor() && resource.data.closedByUid == request.auth.uid);
     }
 
+    // Locations a PI or team member added to an existing study. Public (merged into the catalogue).
+    // Editable/removable by whoever added it, their PI's team, or an admin.
+    match /addedSites/{id} {
+      allow read: if true;
+      allow create: if (isApprovedDoctor() || isApprovedTeamMember() || isAdmin()) &&
+        request.resource.data.id == id &&
+        request.resource.data.addedByUid == request.auth.uid &&
+        request.resource.data.nctId is string &&
+        request.resource.data.facility is string && request.resource.data.facility.size() > 0 &&
+        request.resource.data.city is string;
+      allow update: if isAdmin() || (request.auth != null &&
+        request.resource.data.id == resource.data.id &&
+        request.resource.data.nctId == resource.data.nctId &&
+        request.resource.data.addedByUid == resource.data.addedByUid &&
+        request.resource.data.facility is string && request.resource.data.facility.size() > 0 &&
+        (resource.data.addedByUid == request.auth.uid || sameTeamAs(resource.data.addedByUid)));
+      allow delete: if isAdmin() || (request.auth != null &&
+        (resource.data.addedByUid == request.auth.uid || sameTeamAs(resource.data.addedByUid)));
+    }
+
+    // Append-only log of PI decisions on coordinators — who approved whom.
+    // Written in the same batch as the status change it records (checked via getAfter). Admins
+    // read everything; a PI reads their own team's entries; a member reads their own.
+    match /teamApprovals/{id} {
+      allow read: if isAdmin() || (request.auth != null && (
+        resource.data.piUid == request.auth.uid ||
+        resource.data.decidedByUid == request.auth.uid ||
+        resource.data.memberUid == request.auth.uid));
+      allow create: if request.auth != null &&
+        request.resource.data.id == id &&
+        request.resource.data.decidedByUid == request.auth.uid &&
+        request.resource.data.decision in ['approved', 'rejected'] &&
+        request.resource.data.memberRole == 'coordinator' &&
+        request.resource.data.decidedAt == request.time &&
+        ((isAdmin() && request.resource.data.decidedByRole == 'admin') ||
+         (isApprovedDoctor() &&
+          request.resource.data.decidedByRole == 'pi' &&
+          request.resource.data.piUid == request.auth.uid &&
+          getAfter(/databases/$(database)/documents/users/$(request.resource.data.memberUid)).data.requestedDoctorEmail == request.auth.token.email &&
+          getAfter(/databases/$(database)/documents/users/$(request.resource.data.memberUid)).data.status == request.resource.data.decision));
+      allow update, delete: if false;
+    }
+
     // Append-only audit trail (trial closures/reopenings, role changes). Anyone signed in can add
     // an entry in their own name; only admins can read; nobody can edit or delete.
     match /auditLog/{entryId} {
       allow read: if isAdmin();
       allow create: if request.auth != null &&
         request.resource.data.actorUid == request.auth.uid &&
-        request.resource.data.action in ['trial_closed', 'trial_reopened', 'role_changed', 'pi_authorized'] &&
-        (request.resource.data.action != 'role_changed' || isAdmin()) &&
+        request.resource.data.action in ['trial_closed', 'trial_reopened', 'role_changed', 'pi_authorized', 'team_member_decided', 'account_edited'] &&
+        (!(request.resource.data.action in ['role_changed', 'account_edited']) || isAdmin()) &&
         request.resource.data.at == request.time;
       allow update, delete: if false;
     }
@@ -134,6 +189,20 @@ service cloud.firestore {
           getAfter(/databases/$(database)/documents/users/$(request.resource.data.piUid)).data.status == 'approved' &&
           getAfter(/databases/$(database)/documents/users/$(request.resource.data.piUid)).data.facility.trim().lower() == myHospitalKey()));
       allow update, delete: if false;
+    }
+
+    // Is the signed-in user on the same PI's team as `ownerUid`? True when the user works under
+    // that owner, the owner works under the user (a PI and their member), or both work under the
+    // same PI. Only approved accounts count. Team membership is `users/{uid}.doctorUid`, which
+    // only the PI's approval (or an admin) can set — see isSelfProfileUpdate.
+    function sameTeamAs(ownerUid) {
+      let me = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      let owner = get(/databases/$(database)/documents/users/$(ownerUid)).data;
+      let myPi = me.get('doctorUid', null);
+      let ownerPi = owner.get('doctorUid', null);
+      return me.get('status', '') == 'approved' && (
+        (me.role == 'coordinator' && myPi != null && (myPi == ownerUid || myPi == ownerPi)) ||
+        (me.role == 'doctor' && ownerPi == request.auth.uid && owner.get('status', '') == 'approved'));
     }
 
     function myHospitalKey() {
@@ -180,18 +249,27 @@ service cloud.firestore {
         data.email is string && data.name is string &&
         data.role in ['user', 'doctor', 'coordinator'] &&
         ((data.role == 'user' && !('status' in data)) ||
-         (data.role == 'doctor' && data.status in ['pending', 'approved'] && data.facility is string) ||
+         // Self-registered PIs / Trial Team Doctors always start pending — only admin (or a verified
+         // PI at the same hospital) approves. Pre-approved accounts are created by admin.
+         (data.role == 'doctor' && data.status == 'pending' && data.facility is string &&
+          !('authorizedByUid' in data) && !('importedFrom' in data)) ||
           (data.role == 'coordinator' && data.status == 'pending' &&
+           data.get('doctorUid', null) == null &&
            data.requestedDoctorEmail is string &&
            data.facility is string && data.city is string));
     }
 
     // Owner can edit their own profile, but never grant themselves coordinator/doctor approval and
-    // never change their own uid/role.
+    // never change their own uid/role. A team member can't attach themselves to a PI: `doctorUid`
+    // only ever changes by being cleared, and naming a different PI puts them back to pending.
     function isSelfProfileUpdate(uid, data) {
       return request.auth != null && request.auth.uid == uid &&
         data.uid == uid && data.role == resource.data.role &&
-        (data.status != 'approved' || resource.data.status == 'approved') &&
+        (data.get('status', '') != 'approved' || resource.data.get('status', '') == 'approved') &&
+        (data.get('doctorUid', null) == resource.data.get('doctorUid', null) || data.get('doctorUid', null) == null) &&
+        (data.get('requestedDoctorEmail', '') == resource.data.get('requestedDoctorEmail', '') ||
+         (data.status == 'pending' && data.get('doctorUid', null) == null)) &&
+        (!data.diff(resource.data).affectedKeys().hasAny(['authorizedByUid', 'authorizedByName', 'authorizedByRole', 'authorizedAt', 'piTitle', 'importedFrom'])) &&
         // A verified PI can't move themselves to another hospital — their hospital decides which
         // PIs they may authorize. Only an admin can change it.
         (resource.data.role != 'doctor' || resource.data.status != 'approved' ||
@@ -211,7 +289,7 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'approved';
     }
 
-    // A doctor may only flip status/doctorUid on a coordinator profile that named their email —
+    // A PI may only flip status/doctorUid on a coordinator profile that named their email —
     // and can only ever set doctorUid to *their own* uid (approved) or null (rejected), never an
     // arbitrary value, so the profile's doctor-link can't be forged to point elsewhere.
     function isDoctorApproval(data) {
@@ -223,7 +301,8 @@ service cloud.firestore {
          (data.status == 'rejected' && data.doctorUid == null));
     }
 
-    function isApprovedCoordinator() {
+    // An approved trial coordinator (works under a PI).
+    function isApprovedTeamMember() {
       return request.auth != null &&
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'coordinator' &&

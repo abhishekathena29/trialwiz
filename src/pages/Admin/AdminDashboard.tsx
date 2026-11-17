@@ -10,6 +10,7 @@ import {
   type DemandRecord,
   type UsageRecord,
 } from '../../analytics/aggregate';
+import { EditAccountModal } from '../../components/EditAccountModal';
 import { auth } from '../../firebase';
 import { useTrialCatalogue } from '../../hooks/useTrialCatalogue';
 import { useClosedTrials } from '../../hooks/useClosedTrials';
@@ -22,8 +23,18 @@ import {
   subscribeAllUserContacts,
   subscribeAllUsers,
 } from '../../services/profiles';
+import { subscribeAllTeamApprovals } from '../../services/teamApprovals';
 import { subscribeAllClaims } from '../../services/trialClaims';
-import type { AuditEntry, ClosedTrial, PiAuthorization, TrialClaim, UserContact, UserProfile } from '../../types';
+import {
+  ROLE_LABEL,
+  type AuditEntry,
+  type ClosedTrial,
+  type PiAuthorization,
+  type TeamApproval,
+  type TrialClaim,
+  type UserContact,
+  type UserProfile,
+} from '../../types';
 import { formatTimestamp, timestampMs } from '../../utils/timestamps';
 import { matchesSearch } from '../../utils/search';
 import { AllDoctorsSection } from './AllDoctorsSection';
@@ -37,11 +48,15 @@ const AUDIT_LABEL: Record<string, string> = {
   trial_reopened: 'Trial reopened',
   role_changed: 'Role changed',
   pi_authorized: 'PI authorized',
+  team_member_decided: 'Team member approved / rejected',
+  account_edited: 'Account edited',
 };
+
+type PeopleTab = 'all' | 'pis' | 'trialDoctors' | 'coordinators' | 'history';
 
 /** Labels for the New-accounts breakdown. Admin accounts aren't counted as registrations. */
 function accountTypeLabel(u: UserProfile): string | null {
-  if (u.role === 'doctor') return 'Principal Investigators';
+  if (u.role === 'doctor') return u.piTitle === 'trialDoctor' ? 'Trial team doctors' : 'Principal Investigators';
   if (u.role === 'coordinator') return 'Trial coordinators';
   if (u.role === 'user') return u.userType === 'doctor' ? 'Doctors' : 'Individuals';
   return null;
@@ -172,19 +187,30 @@ export function AdminDashboard({ user }: { user: User }) {
   const [contacts, setContacts] = useState<Map<string, UserContact>>(new Map());
   const [roleChangeTarget, setRoleChangeTarget] = useState<UserProfile | null>(null);
   const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
+  const [peopleTab, setPeopleTab] = useState<PeopleTab>('all');
+  const [editTarget, setEditTarget] = useState<UserProfile | null>(null);
+  const [teamLog, setTeamLog] = useState<TeamApproval[]>([]);
+  const [pendingSearch, setPendingSearch] = useState('');
   const closedTrials = useClosedTrials();
   const adminActor = useMemo(() => ({ uid: user.uid, email: user.email ?? '', name: 'TrialWiz admin' }), [user]);
 
   useEffect(() => subscribeAllUsers(setAllUsers), []);
   useEffect(() => subscribeAllPiAuthorizations(setAuthHistory), []);
+  useEffect(() => subscribeAllTeamApprovals(setTeamLog), []);
 
   const doctors = useMemo(() => allUsers.filter((u) => u.role === 'doctor'), [allUsers]);
   const coordinators = useMemo(() => allUsers.filter((u) => u.role === 'coordinator'), [allUsers]);
-  // PIs + referring doctors (public accounts that signed up as a doctor).
+  // Trial Team Doctors are role 'doctor' accounts (every PI feature) with a different label.
+  const trialDoctors = useMemo(() => doctors.filter((u) => u.piTitle === 'trialDoctor'), [doctors]);
+  const piOnly = useMemo(() => doctors.filter((u) => u.piTitle !== 'trialDoctor'), [doctors]);
+  // PIs + trial team doctors + referring doctors (public accounts that signed up as a doctor).
   const allDoctorAccounts = useMemo(
     () => allUsers.filter((u) => u.role === 'doctor' || (u.role === 'user' && u.userType === 'doctor')),
     [allUsers],
   );
+  /** The Principal Investigators and Trial Doctors sub-tabs share one view, filtered by label. */
+  const ofShownKind = (d: UserProfile) => (peopleTab === 'trialDoctors' ? d.piTitle === 'trialDoctor' : d.piTitle !== 'trialDoctor');
+  const kindLabel = peopleTab === 'trialDoctors' ? 'Trial Team Doctors' : 'Principal Investigators';
 
   // New accounts = real registrations (users/ docs) created inside the selected period. Not the
   // 'signup' usage events: those were only ever logged by the public sign-up form, so admin-created
@@ -205,7 +231,7 @@ export function AdminDashboard({ user }: { user: User }) {
   }, [allUsers, periodStartMs]);
 
   const visibleApprovedDoctors = useMemo(
-    () => doctors.filter((d) => d.status === 'approved' && matchesSearch(piSearch, [d.name, d.facility, d.specialization, d.email])),
+    () => doctors.filter((d) => d.status === 'approved' && matchesSearch(piSearch, [d.name, d.facility, d.specialization, d.email, d.city, d.state])),
     [doctors, piSearch],
   );
   const visibleCoordinators = useMemo(
@@ -236,7 +262,7 @@ export function AdminDashboard({ user }: { user: User }) {
   }
 
   async function handlePromoteCoordinator(c: UserProfile) {
-    if (!window.confirm(`Make ${c.name} (${c.email}) a Principal Investigator? They will be approved immediately.`)) return;
+    if (!window.confirm(`Make ${c.name} (${c.email}) — currently a ${ROLE_LABEL[c.role] ?? c.role} — a Principal Investigator? They will be approved immediately.`)) return;
     setBusyDoctorUid(c.uid);
     try {
       await changeCoordinatorToPi(adminActor, c);
@@ -265,6 +291,10 @@ export function AdminDashboard({ user }: { user: User }) {
   }, []);
 
   const pendingDoctors = useMemo(() => doctors.filter((d) => d.status === 'pending'), [doctors]);
+  const visiblePendingDoctors = useMemo(
+    () => pendingDoctors.filter((d) => matchesSearch(pendingSearch, [d.name, d.email, d.facility, d.city, d.specialization])),
+    [pendingDoctors, pendingSearch],
+  );
   const approvedDoctors = useMemo(() => doctors.filter((d) => d.status === 'approved'), [doctors]);
   const rejectedDoctors = useMemo(() => doctors.filter((d) => d.status === 'rejected'), [doctors]);
 
@@ -304,6 +334,115 @@ export function AdminDashboard({ user }: { user: User }) {
     } finally {
       setBusyDoctorUid(null);
     }
+  }
+
+  /** Shared table for the two kinds of team member — trial team doctors and coordinators. */
+  function renderTeamTable(t: {
+    title: string;
+    blurb: string;
+    members: UserProfile[];
+    visible: UserProfile[];
+    search: string;
+    setSearch: (v: string) => void;
+    placeholder: string;
+  }) {
+    return (
+      <>
+        <div className="sechead2">
+          <h2>
+            {t.title} ({t.members.length})
+          </h2>
+          <span className="sup">{t.blurb}</span>
+        </div>
+        <div className="card full">
+          {t.members.length > 0 && (
+            <div className="admin-search-row">
+              <input
+                type="search"
+                className="claim-input"
+                value={t.search}
+                onChange={(e) => t.setSearch(e.target.value)}
+                placeholder={t.placeholder}
+                aria-label={`Search ${t.title}`}
+              />
+            </div>
+          )}
+          {t.members.length === 0 ? (
+            <div className="sup">No {t.title.toLowerCase()} yet.</div>
+          ) : t.visible.length === 0 ? (
+            <div className="sup">
+              No {t.title.toLowerCase()} match "{t.search}".
+            </div>
+          ) : (
+            <div className="tablewrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Principal Investigator</th>
+                    <th>Hospital</th>
+                    <th>Email</th>
+                    <th>Phone</th>
+                    <th>Status</th>
+                    <th>Approved by</th>
+                    <th style={{ textAlign: 'right' }}>Management</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {t.visible.map((c) => {
+                    const decision = teamLog.find((h) => h.memberUid === c.uid);
+                    return (
+                      <tr key={c.uid}>
+                        <td>
+                          <b>{c.name}</b>
+                          {c.specialization && <div className="sup">{c.specialization}</div>}
+                        </td>
+                        <td>{c.requestedDoctorName || c.requestedDoctorEmail || '—'}</td>
+                        <td>{c.facility || '—'}</td>
+                        <td>{c.email}</td>
+                        <td>{phoneOf(c.uid)}</td>
+                        <td>
+                          <span className={`pill ${c.status ?? 'pending'}`}>{c.status ?? 'pending'}</span>
+                        </td>
+                        <td>
+                          {decision ? (
+                            <>
+                              {decision.decidedByRole === 'admin' ? 'TrialWiz admin' : decision.decidedByName}
+                              <div className="sup">
+                                {decision.decision} · {formatTimestamp(decision.decidedAt)}
+                              </div>
+                            </>
+                          ) : c.status === 'approved' ? (
+                            <span className="sup">Before the log was kept</span>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                            <button className="btn" style={{ padding: '4px 10px', fontSize: 11.5 }} onClick={() => setEditTarget(c)}>
+                              Edit
+                            </button>
+                            <button
+                              className="btn"
+                              style={{ padding: '4px 10px', fontSize: 11.5 }}
+                              disabled={busyDoctorUid === c.uid}
+                              onClick={() => handlePromoteCoordinator(c)}
+                            >
+                              Make Principal Investigator
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </>
+    );
   }
 
   useEffect(() => {
@@ -430,7 +569,7 @@ export function AdminDashboard({ user }: { user: User }) {
             className={`portal-tab ${adminTab === 'doctors' ? 'active' : ''}`}
             onClick={() => setAdminTab('doctors')}
           >
-            🩺 Principal Investigator Accounts ({approvedDoctors.length})
+            🩺 Doctors, PIs & Trial Teams ({allDoctorAccounts.length + coordinators.length})
             {pendingDoctors.length > 0 && (
               <span className="tab-pending-badge">{pendingDoctors.length}</span>
             )}
@@ -662,23 +801,17 @@ export function AdminDashboard({ user }: { user: User }) {
           </div>
         )}
 
-        {/* TAB 3: DOCTORS & PI APPROVALS */}
+        {/* TAB 3: DOCTORS, PIs & TRIAL TEAMS */}
         {adminTab === 'doctors' && (
           <div>
             <div className="admin-section-head">
               <div>
-                <h2 style={{ fontSize: 18, margin: 0, fontWeight: 780 }}>
-                  Principal Investigator & Doctor Accounts
-                </h2>
+                <h2 style={{ fontSize: 18, margin: 0, fontWeight: 780 }}>Doctors, Principal Investigators & Trial Teams</h2>
                 <p className="sup" style={{ margin: '4px 0 0' }}>
-                  Approve self-registered PIs, change roles, and create pre-approved accounts for any role
+                  Approve self-registered PIs, edit account details, change roles, and create pre-approved accounts for any role
                 </p>
               </div>
-              <button
-                className="btn primary"
-                onClick={() => setCreateDoctorOpen(true)}
-                style={{ marginLeft: 'auto' }}
-              >
+              <button className="btn primary" onClick={() => setCreateDoctorOpen(true)} style={{ marginLeft: 'auto' }}>
                 ➕ Create Account
               </button>
             </div>
@@ -693,12 +826,16 @@ export function AdminDashboard({ user }: { user: User }) {
             <div className="kpis" style={{ marginTop: 16 }}>
               <div className="kpi">
                 <div className={`n ${pendingDoctors.length > 0 ? 'warn' : ''}`}>{pendingDoctors.length}</div>
-                <div className="l">Pending Approvals</div>
+                <div className="l">Pending PI Approvals</div>
                 <div className="d">{pendingDoctors.length > 0 ? 'Action required' : 'All clear'}</div>
               </div>
               <div className="kpi">
                 <div className="n">{approvedDoctors.length}</div>
-                <div className="l">Verified Doctors (PIs)</div>
+                <div className="l">Verified PIs</div>
+              </div>
+              <div className="kpi">
+                <div className="n">{trialDoctors.length}</div>
+                <div className="l">Trial Team Doctors</div>
               </div>
               <div className="kpi">
                 <div className="n">{distinctHospitals}</div>
@@ -710,291 +847,370 @@ export function AdminDashboard({ user }: { user: User }) {
               </div>
             </div>
 
-            {/* PENDING APPROVALS */}
-            <div className="sechead2">
-              <h2>Pending Doctor Approvals ({pendingDoctors.length})</h2>
-              <span className="sup">Doctors who registered via provider portal and await site verification</span>
-            </div>
-            <div className="card full">
-              {pendingDoctors.length === 0 ? (
-                <div className="sup">No pending doctor approvals right now. All registrations are processed!</div>
-              ) : (
-                <div className="tablewrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Doctor Name</th>
-                        <th>Hospital / Institution</th>
-                        <th>Location</th>
-                        <th>Email</th>
-                        <th>Phone</th>
-                        <th style={{ textAlign: 'right' }}>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pendingDoctors.map((d) => (
-                        <tr key={d.uid}>
-                          <td><b>{d.name}</b></td>
-                          <td>{d.facility || '—'}</td>
-                          <td>{[d.city, d.state].filter(Boolean).join(', ') || '—'}</td>
-                          <td><a href={`mailto:${d.email}`}>{d.email}</a></td>
-                          <td>{phoneOf(d.uid)}</td>
-                          <td style={{ textAlign: 'right' }}>
-                            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                              <button
-                                className="btn primary"
-                                style={{ padding: '6px 12px', fontSize: 12 }}
-                                disabled={busyDoctorUid === d.uid}
-                                onClick={() => handleApproveDoctor(d)}
-                              >
-                                {busyDoctorUid === d.uid ? '…' : 'Approve'}
-                              </button>
-                              <button
-                                className="btn"
-                                style={{ padding: '6px 12px', fontSize: 12, color: 'var(--red)' }}
-                                disabled={busyDoctorUid === d.uid}
-                                onClick={() => handleRejectDoctor(d.uid, d.name)}
-                              >
-                                Reject
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+            {/* Sub-tabs */}
+            <div className="portal-tabs" style={{ marginTop: 18 }}>
+              <button className={`portal-tab ${peopleTab === 'all' ? 'active' : ''}`} onClick={() => setPeopleTab('all')}>
+                All Registered Doctors ({allDoctorAccounts.length})
+              </button>
+              <button className={`portal-tab ${peopleTab === 'pis' ? 'active' : ''}`} onClick={() => setPeopleTab('pis')}>
+                Principal Investigators ({piOnly.length})
+                {pendingDoctors.some((d) => d.piTitle !== 'trialDoctor') && (
+                  <span className="tab-pending-badge">{pendingDoctors.filter((d) => d.piTitle !== 'trialDoctor').length}</span>
+                )}
+              </button>
+              <button
+                className={`portal-tab ${peopleTab === 'trialDoctors' ? 'active' : ''}`}
+                onClick={() => setPeopleTab('trialDoctors')}
+              >
+                Trial Doctors ({trialDoctors.length})
+                {pendingDoctors.some((d) => d.piTitle === 'trialDoctor') && (
+                  <span className="tab-pending-badge">{pendingDoctors.filter((d) => d.piTitle === 'trialDoctor').length}</span>
+                )}
+              </button>
+              <button
+                className={`portal-tab ${peopleTab === 'coordinators' ? 'active' : ''}`}
+                onClick={() => setPeopleTab('coordinators')}
+              >
+                Trial Coordinators ({coordinators.length})
+              </button>
+              <button className={`portal-tab ${peopleTab === 'history' ? 'active' : ''}`} onClick={() => setPeopleTab('history')}>
+                Approval History ({authHistory.length + teamLog.length})
+              </button>
             </div>
 
-            <AllDoctorsSection doctors={allDoctorAccounts} phoneOf={phoneOf} />
+            {peopleTab === 'all' && <AllDoctorsSection doctors={allDoctorAccounts} phoneOf={phoneOf} onEdit={setEditTarget} />}
 
-            {/* VERIFIED PRINCIPAL INVESTIGATORS */}
-            <div className="sechead2">
-              <h2>Verified Principal Investigators ({approvedDoctors.length})</h2>
-              <span className="sup">Authorized to claim trials, add site contacts, approve coordinators, and authorize PIs at their hospital</span>
-            </div>
-            <div className="card full">
-              {approvedDoctors.length > 0 && (
-                <div className="admin-search-row">
-                  <input
-                    type="search"
-                    className="claim-input"
-                    value={piSearch}
-                    onChange={(e) => setPiSearch(e.target.value)}
-                    placeholder="Search verified PIs by name, hospital or specialization…"
-                    aria-label="Search verified Principal Investigators"
-                  />
-                </div>
-              )}
-              {approvedDoctors.length === 0 ? (
-                <div className="sup">No approved doctor accounts yet. Use the "+ Create Account" button above to add one.</div>
-              ) : visibleApprovedDoctors.length === 0 ? (
-                <div className="sup">No verified Principal Investigators match "{piSearch}".</div>
-              ) : (
-                <div className="tablewrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Doctor Name</th>
-                        <th>Hospital / Institution</th>
-                        <th>Specialization</th>
-                        <th>Location</th>
-                        <th>Email</th>
-                        <th>Phone</th>
-                        <th>Status</th>
-                        <th style={{ textAlign: 'right' }}>Management</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {visibleApprovedDoctors.map((d) => (
-                        <tr key={d.uid}>
-                          <td><b>{d.name}</b></td>
-                          <td>{d.facility || '—'}</td>
-                          <td>{d.specialization || '—'}</td>
-                          <td>{[d.city, d.state].filter(Boolean).join(', ') || '—'}</td>
-                          <td>{d.email}</td>
-                          <td>{phoneOf(d.uid)}</td>
-                          <td><span className="pill approved">Approved</span></td>
-                          <td style={{ textAlign: 'right' }}>
-                            <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                              <button
-                                className="btn"
-                                style={{ padding: '4px 10px', fontSize: 11.5 }}
-                                disabled={busyDoctorUid === d.uid}
-                                onClick={() => setRoleChangeTarget(d)}
-                                title="Change this account's role to Trial Coordinator"
-                              >
-                                Change to Coordinator
-                              </button>
-                              <button
-                                className="btn"
-                                style={{ padding: '4px 10px', fontSize: 11.5 }}
-                                disabled={busyDoctorUid === d.uid}
-                                onClick={() => handleRejectDoctor(d.uid, d.name)}
-                              >
-                                Revoke
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-
-            {/* REJECTED DOCTORS */}
-            {rejectedDoctors.length > 0 && (
+            {(peopleTab === 'pis' || peopleTab === 'trialDoctors') && (
               <>
+                {/* PENDING APPROVALS */}
                 <div className="sechead2">
-                  <h2>Rejected Doctor Registrations ({rejectedDoctors.length})</h2>
+                  <h2>Pending {kindLabel} ({pendingDoctors.filter(ofShownKind).length})</h2>
+                  <span className="sup">
+                    Saved accounts awaiting verification — by you, or by a verified PI at the same hospital
+                  </span>
                 </div>
                 <div className="card full">
-                  <div className="tablewrap">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Doctor Name</th>
-                          <th>Hospital / Institution</th>
-                          <th>Email</th>
-                          <th style={{ textAlign: 'right' }}>Action</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {rejectedDoctors.map((d) => (
-                          <tr key={d.uid}>
-                            <td><b>{d.name}</b></td>
-                            <td>{d.facility || '—'}</td>
-                            <td>{d.email}</td>
-                            <td style={{ textAlign: 'right' }}>
-                              <button
-                                className="btn"
-                                style={{ padding: '4px 10px', fontSize: 11.5 }}
-                                disabled={busyDoctorUid === d.uid}
-                                onClick={() => handleApproveDoctor(d)}
-                              >
-                                Approve instead
-                              </button>
-                            </td>
+                  {pendingDoctors.some(ofShownKind) && (
+                    <div className="admin-search-row">
+                      <input
+                        type="search"
+                        className="claim-input"
+                        value={pendingSearch}
+                        onChange={(e) => setPendingSearch(e.target.value)}
+                        placeholder={`Search pending ${kindLabel} by name, email, hospital or city…`}
+                        aria-label="Search pending Principal Investigators"
+                      />
+                    </div>
+                  )}
+                  {!pendingDoctors.some(ofShownKind) ? (
+                    <div className="sup">No pending doctor approvals right now. All registrations are processed!</div>
+                  ) : !visiblePendingDoctors.some(ofShownKind) ? (
+                    <div className="sup">No pending {kindLabel} match "{pendingSearch}".</div>
+                  ) : (
+                    <div className="tablewrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Doctor Name</th>
+                            <th>Hospital / Institution</th>
+                            <th>Location</th>
+                            <th>Email</th>
+                            <th>Phone</th>
+                            <th style={{ textAlign: 'right' }}>Actions</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        </thead>
+                        <tbody>
+                          {visiblePendingDoctors.filter(ofShownKind).map((d) => (
+                            <tr key={d.uid}>
+                              <td><b>{d.name}</b></td>
+                              <td>{d.facility || '—'}</td>
+                              <td>{[d.city, d.state].filter(Boolean).join(', ') || '—'}</td>
+                              <td><a href={`mailto:${d.email}`}>{d.email}</a></td>
+                              <td>{phoneOf(d.uid)}</td>
+                              <td style={{ textAlign: 'right' }}>
+                                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                                  <button
+                                    className="btn primary"
+                                    style={{ padding: '6px 12px', fontSize: 12 }}
+                                    disabled={busyDoctorUid === d.uid}
+                                    onClick={() => handleApproveDoctor(d)}
+                                  >
+                                    {busyDoctorUid === d.uid ? '…' : 'Approve'}
+                                  </button>
+                                  <button
+                                    className="btn"
+                                    style={{ padding: '6px 12px', fontSize: 12 }}
+                                    onClick={() => setEditTarget(d)}
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    className="btn"
+                                    style={{ padding: '6px 12px', fontSize: 12, color: 'var(--red)' }}
+                                    disabled={busyDoctorUid === d.uid}
+                                    onClick={() => handleRejectDoctor(d.uid, d.name)}
+                                  >
+                                    Reject
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
+
+                {/* VERIFIED PRINCIPAL INVESTIGATORS */}
+                <div className="sechead2">
+                  <h2>Verified {kindLabel} ({approvedDoctors.filter(ofShownKind).length})</h2>
+                  <span className="sup">
+                    Authorized to claim trials, add site contacts, approve their trial team, and authorize PIs at their hospital
+                  </span>
+                </div>
+                <div className="card full">
+                  {approvedDoctors.some(ofShownKind) && (
+                    <div className="admin-search-row">
+                      <input
+                        type="search"
+                        className="claim-input"
+                        value={piSearch}
+                        onChange={(e) => setPiSearch(e.target.value)}
+                        placeholder={`Search verified ${kindLabel} by name, email, hospital, city or specialization…`}
+                        aria-label="Search verified Principal Investigators"
+                      />
+                    </div>
+                  )}
+                  {!approvedDoctors.some(ofShownKind) ? (
+                    <div className="sup">No approved doctor accounts yet. Use the "+ Create Account" button above to add one.</div>
+                  ) : !visibleApprovedDoctors.some(ofShownKind) ? (
+                    <div className="sup">No verified {kindLabel} match "{piSearch}".</div>
+                  ) : (
+                    <div className="tablewrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Doctor Name</th>
+                            <th>Hospital / Institution</th>
+                            <th>Specialization</th>
+                            <th>Location</th>
+                            <th>Email</th>
+                            <th>Phone</th>
+                            <th>Coordinators</th>
+                            <th style={{ textAlign: 'right' }}>Management</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {visibleApprovedDoctors.filter(ofShownKind).map((d) => {
+                            const team = coordinators.filter((u) => u.doctorUid === d.uid);
+                            return (
+                              <tr key={d.uid}>
+                                <td><b>{d.name}</b></td>
+                                <td>{d.facility || '—'}</td>
+                                <td>{d.specialization || '—'}</td>
+                                <td>{[d.city, d.state].filter(Boolean).join(', ') || '—'}</td>
+                                <td>{d.email}</td>
+                                <td>{phoneOf(d.uid)}</td>
+                                <td>
+                                  {team.length === 0 ? (
+                                    '—'
+                                  ) : (
+                                    <span className="sup">{team.length} coordinator(s)</span>
+                                  )}
+                                </td>
+                                <td style={{ textAlign: 'right' }}>
+                                  <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                                    <button
+                                      className="btn"
+                                      style={{ padding: '4px 10px', fontSize: 11.5 }}
+                                      onClick={() => setEditTarget(d)}
+                                      title="Edit name, hospital, phone numbers and other details"
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      className="btn"
+                                      style={{ padding: '4px 10px', fontSize: 11.5 }}
+                                      disabled={busyDoctorUid === d.uid}
+                                      onClick={() => setRoleChangeTarget(d)}
+                                      title="Change this account's role to Trial Coordinator"
+                                    >
+                                      Change to Coordinator
+                                    </button>
+                                    <button
+                                      className="btn"
+                                      style={{ padding: '4px 10px', fontSize: 11.5 }}
+                                      disabled={busyDoctorUid === d.uid}
+                                      onClick={() => handleRejectDoctor(d.uid, d.name)}
+                                    >
+                                      Revoke
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                {/* REJECTED DOCTORS */}
+                {rejectedDoctors.some(ofShownKind) && (
+                  <>
+                    <div className="sechead2">
+                      <h2>Rejected {kindLabel} ({rejectedDoctors.filter(ofShownKind).length})</h2>
+                    </div>
+                    <div className="card full">
+                      <div className="tablewrap">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Doctor Name</th>
+                              <th>Hospital / Institution</th>
+                              <th>Email</th>
+                              <th style={{ textAlign: 'right' }}>Action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {rejectedDoctors.filter(ofShownKind).map((d) => (
+                              <tr key={d.uid}>
+                                <td><b>{d.name}</b></td>
+                                <td>{d.facility || '—'}</td>
+                                <td>{d.email}</td>
+                                <td style={{ textAlign: 'right' }}>
+                                  <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                                    <button className="btn" style={{ padding: '4px 10px', fontSize: 11.5 }} onClick={() => setEditTarget(d)}>
+                                      Edit
+                                    </button>
+                                    <button
+                                      className="btn"
+                                      style={{ padding: '4px 10px', fontSize: 11.5 }}
+                                      disabled={busyDoctorUid === d.uid}
+                                      onClick={() => handleApproveDoctor(d)}
+                                    >
+                                      Approve instead
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </>
+                )}
               </>
             )}
 
-            {/* TRIAL COORDINATORS */}
-            <div className="sechead2">
-              <h2>Trial Coordinators ({coordinators.length})</h2>
-              <span className="sup">
-                Coordinators are approved by their Principal Investigator. Admins can promote a coordinator to PI.
-              </span>
-            </div>
-            <div className="card full">
-              {coordinators.length > 0 && (
-                <div className="admin-search-row">
-                  <input
-                    type="search"
-                    className="claim-input"
-                    value={coordSearch}
-                    onChange={(e) => setCoordSearch(e.target.value)}
-                    placeholder="Search coordinators by name, email, hospital or PI…"
-                    aria-label="Search trial coordinators"
-                  />
-                </div>
-              )}
-              {coordinators.length === 0 ? (
-                <div className="sup">No trial coordinator accounts yet.</div>
-              ) : visibleCoordinators.length === 0 ? (
-                <div className="sup">No trial coordinators match "{coordSearch}".</div>
-              ) : (
-                <div className="tablewrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Name</th>
-                        <th>Principal Investigator</th>
-                        <th>Hospital</th>
-                        <th>Email</th>
-                        <th>Phone</th>
-                        <th>Status</th>
-                        <th style={{ textAlign: 'right' }}>Management</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {visibleCoordinators.map((c) => (
-                        <tr key={c.uid}>
-                          <td><b>{c.name}</b></td>
-                          <td>{c.requestedDoctorName || c.requestedDoctorEmail || '—'}</td>
-                          <td>{c.facility || '—'}</td>
-                          <td>{c.email}</td>
-                          <td>{phoneOf(c.uid)}</td>
-                          <td>
-                            <span className={`pill ${c.status ?? 'pending'}`}>{c.status ?? 'pending'}</span>
-                          </td>
-                          <td style={{ textAlign: 'right' }}>
-                            <button
-                              className="btn"
-                              style={{ padding: '4px 10px', fontSize: 11.5 }}
-                              disabled={busyDoctorUid === c.uid}
-                              onClick={() => handlePromoteCoordinator(c)}
-                            >
-                              Make Principal Investigator
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+            {peopleTab === 'coordinators' &&
+              renderTeamTable({
+                title: 'Trial Coordinators',
+                blurb: 'Coordinators are approved by their Principal Investigator. Admins can promote a coordinator to PI.',
+                members: coordinators,
+                visible: visibleCoordinators,
+                search: coordSearch,
+                setSearch: setCoordSearch,
+                placeholder: 'Search coordinators by name, email, hospital or PI…',
+              })}
 
-            {/* PI AUTHORIZATION HISTORY */}
-            <div className="sechead2">
-              <h2>PI authorization history ({authHistory.length})</h2>
-              <span className="sup">
-                Who verified each Principal Investigator and when — TrialWiz admin, or a verified PI at the same hospital
-              </span>
-            </div>
-            <div className="card full">
-              {authHistory.length === 0 ? (
-                <div className="sup">No authorizations recorded yet.</div>
-              ) : (
-                <div className="tablewrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>When</th>
-                        <th>Principal Investigator</th>
-                        <th>Hospital</th>
-                        <th>Authorized by</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {authHistory.map((h) => (
-                        <tr key={h.id}>
-                          <td>{formatTimestamp(h.authorizedAt)}</td>
-                          <td>
-                            <b>{h.piName}</b>
-                            <div className="sup">{h.piEmail}</div>
-                          </td>
-                          <td>{h.hospital || '—'}</td>
-                          <td>
-                            {h.authorizedByRole === 'admin' ? 'TrialWiz admin' : `PI · ${h.authorizedByName}`}
-                            <div className="sup">{h.authorizedByEmail}</div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+            {peopleTab === 'history' && (
+              <>
+                {/* TEAM APPROVAL LOG */}
+                <div className="sechead2">
+                  <h2>Coordinator approvals ({teamLog.length})</h2>
+                  <span className="sup">Which Principal Investigator approved or rejected which trial coordinator, and when</span>
                 </div>
-              )}
-            </div>
+                <div className="card full">
+                  {teamLog.length === 0 ? (
+                    <div className="sup">No team decisions recorded yet.</div>
+                  ) : (
+                    <div className="tablewrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>When</th>
+                            <th>Team member</th>
+                            <th>Role</th>
+                            <th>Decision</th>
+                            <th>Principal Investigator</th>
+                            <th>Decided by</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {teamLog.map((h) => (
+                            <tr key={h.id}>
+                              <td>{formatTimestamp(h.decidedAt)}</td>
+                              <td>
+                                <b>{h.memberName}</b>
+                                <div className="sup">{h.memberEmail}</div>
+                              </td>
+                              <td>{ROLE_LABEL[h.memberRole] ?? h.memberRole}</td>
+                              <td>
+                                <span className={`pill ${h.decision}`}>{h.decision === 'approved' ? 'Approved' : 'Rejected'}</span>
+                              </td>
+                              <td>
+                                {h.piName}
+                                {h.hospital && <div className="sup">{h.hospital}</div>}
+                              </td>
+                              <td>
+                                {h.decidedByRole === 'admin' ? 'TrialWiz admin' : `PI · ${h.decidedByName}`}
+                                <div className="sup">{h.decidedByEmail}</div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                {/* PI AUTHORIZATION HISTORY */}
+                <div className="sechead2">
+                  <h2>PI authorization history ({authHistory.length})</h2>
+                  <span className="sup">
+                    Who verified each Principal Investigator and when — TrialWiz admin, or a verified PI at the same hospital
+                  </span>
+                </div>
+                <div className="card full">
+                  {authHistory.length === 0 ? (
+                    <div className="sup">No authorizations recorded yet.</div>
+                  ) : (
+                    <div className="tablewrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>When</th>
+                            <th>Principal Investigator</th>
+                            <th>Hospital</th>
+                            <th>Authorized by</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {authHistory.map((h) => (
+                            <tr key={h.id}>
+                              <td>{formatTimestamp(h.authorizedAt)}</td>
+                              <td>
+                                <b>{h.piName}</b>
+                                <div className="sup">{h.piEmail}</div>
+                              </td>
+                              <td>{h.hospital || '—'}</td>
+                              <td>
+                                {h.authorizedByRole === 'admin' ? 'TrialWiz admin' : `PI · ${h.authorizedByName}`}
+                                <div className="sup">{h.authorizedByEmail}</div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -1057,7 +1273,7 @@ export function AdminDashboard({ user }: { user: User }) {
 
             <div className="sechead2">
               <h2>Audit trail</h2>
-              <span className="sup">Trial closures, reopenings and role changes — append-only, newest first</span>
+              <span className="sup">Trial closures, reopenings, role changes, approvals and account edits — append-only, newest first</span>
             </div>
             <div className="card full">
               {auditEntries.length === 0 ? (
@@ -1105,6 +1321,16 @@ export function AdminDashboard({ user }: { user: User }) {
           }
           onClose={() => setRoleChangeTarget(null)}
           onChanged={flash}
+        />
+      )}
+
+      {editTarget && (
+        <EditAccountModal
+          account={editTarget}
+          mode="admin"
+          admin={adminActor}
+          onClose={() => setEditTarget(null)}
+          onSaved={flash}
         />
       )}
 

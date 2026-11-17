@@ -10,7 +10,7 @@ codebase:
 - **`/` — public Trial Finder.** Browse recruiting cancer trials by cancer type or by centre, or
   search with facets (spread/metastatic, therapy line, biomarker). Location-aware (GPS or typed
   city + radius, or All India). No login.
-- **`/portal` — Provider Portal.** Doctors and trial coordinators sign up here. A coordinator
+- **`/portal` — Provider Portal.** PIs, Trial Team Doctors and trial coordinators sign up here. A coordinator
   names the doctor they work with at sign-up and stays pending until that doctor approves them;
   once approved, they can add clinical trials, which appear immediately in the public Trial
   Finder alongside the ClinicalTrials.gov data. See [`src/pages/Portal/`](src/pages/Portal/).
@@ -65,6 +65,26 @@ codebase:
   profiles in `users/` are publicly readable for the coordinator sign-up lookup.
 - Admins can create an account of any role from the admin dashboard; it's approved immediately.
   A new trial coordinator is linked to the PI the admin picks.
+- **Trial Team Doctors** are PI accounts (role `doctor`) with `piTitle: 'trialDoctor'` — every PI
+  feature, verified the same way, only the label differs (admins can switch it in Edit account).
+  A PI and the coordinators they approved form one **team**: members see the team's claims (no
+  re-claiming what the PI already claimed) and can update a teammate's claim contact details,
+  added locations and submitted trials. Team membership is `users/{uid}.doctorUid`, which only the
+  PI's approval or an admin can set (see `sameTeamAs` in `firestore.rules`).
+- **Bulk PI accounts:** `npm run create-pi-accounts` (dry run) previews an approved PI login for every
+  PI email on the site's CTRI trials; add `-- --apply` with `GOOGLE_APPLICATION_CREDENTIALS` to create
+  them. Sponsor/CRO contacts are skipped unless `--include-sponsors`. No emails are sent — passwords
+  for new logins go to `private/` (gitignored). Safe to re-run.
+- Every PI decision on a coordinator is logged in the append-only `teamApprovals`
+  collection, in the same batch as the status change — the PI sees their team's log in the portal,
+  admins see all of it under **Approval History** (alongside the PI authorization history).
+- PIs and team members can **add a location** to any trial (`addedSites`, merged into the catalogue
+  as an extra site of that study) and edit the location/contact of trials they submitted.
+- The portal's hospital filter (`src/utils/hospitalMatch.ts`) requires every distinctive word of the
+  hospital name to match and understands acronyms (AIIMS, RGCI), so a search for one hospital no
+  longer returns others. Trial search also matches the site investigator's name.
+- Admins can edit any account's name, hospital, city/state, specialization and phone numbers
+  (audited); users can edit their own profile from the portal (a verified PI's hospital stays fixed).
 - Admins can change a PI into a Trial Coordinator (choosing the supervising PI) or promote a
   coordinator to PI from the Principal Investigator Accounts tab; both are audited.
 - Every public search is silently logged as one aggregate, de-identified event (cancer type,

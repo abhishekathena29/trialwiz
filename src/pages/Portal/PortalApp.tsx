@@ -48,8 +48,8 @@ function NotRegistered({ email }: { email: string | null | undefined }) {
         <div className="login-card">
           <h1>Not a provider account</h1>
           <p>
-            Signed in as <b>{email}</b>, but this account isn't registered as a Principal Investigator or trial
-            coordinator. Sign out and create a provider account to use this portal.
+            Signed in as <b>{email}</b>, but this account isn't registered as a Principal Investigator, trial
+            coordinator or trial team doctor. Sign out and create a provider account to use this portal.
           </p>
           <button className="go" onClick={() => auth && signOut(auth)}>
             Sign out
@@ -78,7 +78,7 @@ export function PortalApp() {
     return <DoctorDashboard user={user} profile={profile} />;
   }
 
-  // coordinator
+  // coordinator / trial team doctor — both work under a PI who approves them
   if (profile.status !== 'approved') return <CoordinatorPending user={user} profile={profile} />;
 
   return <DoctorDashboard user={user} profile={profile} />;

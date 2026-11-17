@@ -13,9 +13,10 @@ import {
   where,
 } from 'firebase/firestore';
 import { db, firebaseConfig } from '../firebase';
-import type { PublicUserType, UserContact, UserProfile } from '../types';
+import { accountLabel, type PiTitle, type PublicUserType, type UserContact, type UserProfile } from '../types';
 import { writeAudit, type AuditActor } from './audit';
 import { recordAdminCreatedPi } from './piAuthorization';
+import { recordAdminCreatedTeamMember } from './teamApprovals';
 
 export const USERS_COLLECTION = 'users';
 /** Phone numbers live outside `users/` because PI profiles are publicly readable (coordinators
@@ -123,6 +124,7 @@ export async function createDoctorProfile(
   state = '',
   phones: AccountPhones = {},
   specialization = '',
+  piTitle: PiTitle = 'pi',
 ): Promise<void> {
   const firestore = requireDb();
   await saveUserPhones(uid, phones);
@@ -131,6 +133,7 @@ export async function createDoctorProfile(
     email,
     name,
     role: 'doctor',
+    piTitle,
     specialization: specialization.trim(),
     facility: facility.trim(),
     city: city.trim(),
@@ -183,8 +186,9 @@ export function subscribeDoctors(onChange: (doctors: UserProfile[]) => void): ()
 }
 
 /** Account types the admin (and the sign-up page) can create. Individuals and referring doctors
- * are public Trial Finder accounts (role 'user'); PIs are role 'doctor'. */
-export type NewAccountRole = 'individual' | 'doctor' | 'pi' | 'coordinator';
+ * are public Trial Finder accounts (role 'user'); PIs and trial team doctors are role 'doctor'
+ * (same features, different label); coordinators work under a PI. */
+export type NewAccountRole = 'individual' | 'doctor' | 'pi' | 'coordinator' | 'trialDoctor';
 
 export interface AdminCreateAccountParams {
   role: NewAccountRole;
@@ -209,7 +213,9 @@ export interface AdminCreateAccountParams {
  */
 export async function createAccountByAdmin(params: AdminCreateAccountParams): Promise<string> {
   const firestore = requireDb();
-  if (params.role === 'coordinator' && !params.supervisor) {
+  const isTeam = params.role === 'coordinator';
+  const isPi = params.role === 'pi' || params.role === 'trialDoctor';
+  if (isTeam && !params.supervisor) {
     throw new Error('Choose the Principal Investigator this coordinator works under.');
   }
   const appName = `admin_create_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -224,10 +230,11 @@ export async function createAccountByAdmin(params: AdminCreateAccountParams): Pr
     const specialization = (params.specialization ?? '').trim();
 
     let profile: Record<string, unknown>;
-    if (params.role === 'pi') {
+    if (isPi) {
       profile = {
         ...base,
         role: 'doctor',
+        piTitle: params.role === 'trialDoctor' ? 'trialDoctor' : 'pi',
         specialization,
         facility: (params.facility ?? '').trim(),
         city: (params.city ?? '').trim(),
@@ -239,7 +246,7 @@ export async function createAccountByAdmin(params: AdminCreateAccountParams): Pr
         authorizedByRole: 'admin',
         authorizedAt: serverTimestamp(),
       };
-    } else if (params.role === 'coordinator') {
+    } else if (isTeam) {
       const sup = params.supervisor!;
       profile = {
         ...base,
@@ -262,10 +269,18 @@ export async function createAccountByAdmin(params: AdminCreateAccountParams): Pr
     }
     await setDoc(doc(firestore, USERS_COLLECTION, uid), profile);
     await saveUserPhones(uid, params.phones ?? {});
-    if (params.role === 'pi' && params.admin) {
+    if (isPi && params.admin) {
       await recordAdminCreatedPi(profile as unknown as UserProfile, { ...params.admin, name: params.admin.name ?? 'TrialWiz admin', role: 'admin' }).catch(
         (e) => console.warn('[TrialWiz] authorization history write failed (admin-created PI):', e),
       );
+    }
+    if (isTeam && params.admin && params.supervisor) {
+      await recordAdminCreatedTeamMember(profile as unknown as UserProfile, params.supervisor, {
+        uid: params.admin.uid,
+        email: params.admin.email,
+        name: params.admin.name ?? 'TrialWiz admin',
+        role: 'admin',
+      }).catch((e) => console.warn('[TrialWiz] team approval log write failed (admin-created member):', e));
     }
 
     return uid;
@@ -335,43 +350,26 @@ export async function requestDoctor(uid: string, requestedDoctorEmail: string): 
   });
 }
 
-/** Coordinators who named this doctor's email at signup, regardless of status — the doctor's
- * dashboard splits them into pending/approved/rejected lists client-side. Live: updates the
- * moment a new coordinator names them, or an existing one's status changes. */
-export function subscribeCoordinatorsForDoctor(doctorEmail: string, onChange: (coordinators: UserProfile[]) => void): () => void {
+/** Coordinators who named this PI's email at sign-up, regardless of status — the PI's dashboard
+ * splits them into pending/approved/rejected lists client-side. Live: updates the moment someone
+ * names them, or an existing coordinator's status changes. */
+export function subscribeTeamForPi(piEmail: string, onChange: (members: UserProfile[]) => void): () => void {
   if (!db) {
     onChange([]);
     return () => {};
   }
-  const q = query(
-    collection(db, USERS_COLLECTION),
-    where('role', '==', 'coordinator'),
-    where('requestedDoctorEmail', '==', doctorEmail.trim().toLowerCase()),
-  );
   return onSnapshot(
-    q,
+    query(
+      collection(db, USERS_COLLECTION),
+      where('role', '==', 'coordinator'),
+      where('requestedDoctorEmail', '==', piEmail.trim().toLowerCase()),
+    ),
     (snap) => onChange(snap.docs.map((d) => d.data() as UserProfile)),
     (err) => {
       console.warn('[TrialWiz] coordinator subscription failed:', err);
       onChange([]);
     },
   );
-}
-
-export async function approveCoordinator(coordinatorUid: string, doctorUid: string): Promise<void> {
-  const firestore = requireDb();
-  await updateDoc(doc(firestore, USERS_COLLECTION, coordinatorUid), {
-    status: 'approved',
-    doctorUid,
-  });
-}
-
-export async function rejectCoordinator(coordinatorUid: string): Promise<void> {
-  const firestore = requireDb();
-  await updateDoc(doc(firestore, USERS_COLLECTION, coordinatorUid), {
-    status: 'rejected',
-    doctorUid: null,
-  });
 }
 
 /** Admin-only: every trial coordinator account, any status. */
@@ -436,4 +434,79 @@ export async function changeCoordinatorToPi(admin: AuditActor, coordinator: User
     `${coordinator.name} <${coordinator.email}>`,
     'Trial Coordinator → Principal Investigator',
   ).catch((e) => console.warn('[TrialWiz] audit write failed (role change):', e));
+}
+
+/** Profile fields an admin (or the account owner, within firestore.rules limits) can edit. */
+export interface AccountEdit {
+  name?: string;
+  /** Admin only, role 'doctor' accounts: PI vs Trial Team Doctor label. */
+  piTitle?: PiTitle;
+  facility?: string;
+  city?: string;
+  state?: string;
+  specialization?: string;
+}
+
+function cleanEdit(edit: AccountEdit): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(edit)) {
+    if (typeof v === 'string') out[k] = v.trim();
+  }
+  if (out.name === '') delete out.name;
+  return out;
+}
+
+/** Saves both phone numbers as given (blank clears one). Unlike `saveUserPhones`, never a no-op. */
+async function writePhones(uid: string, phones: AccountPhones): Promise<void> {
+  const firestore = requireDb();
+  await setDoc(doc(firestore, USER_CONTACTS_COLLECTION, uid), {
+    uid,
+    phone: (phones.phone ?? '').trim(),
+    publicPhone: (phones.publicPhone ?? '').trim(),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/**
+ * Admin-only: edits an account's details — name, hospital, city/state, specialization and phone
+ * numbers. Recorded in the audit trail with a summary of what changed.
+ */
+export async function updateAccountByAdmin(
+  admin: AuditActor,
+  account: UserProfile,
+  edit: AccountEdit,
+  phones: AccountPhones,
+  previousPhones: AccountPhones,
+): Promise<void> {
+  const firestore = requireDb();
+  const patch = cleanEdit(edit);
+  const changed = Object.entries(patch)
+    .filter(([k, v]) => ((account as unknown as Record<string, unknown>)[k] ?? '') !== v)
+    .map(([k, v]) => `${k}: "${(account as unknown as Record<string, unknown>)[k] ?? ''}" → "${v}"`);
+  if (Object.keys(patch).length) await updateDoc(doc(firestore, USERS_COLLECTION, account.uid), patch);
+  const phoneChanged =
+    (phones.phone ?? '').trim() !== (previousPhones.phone ?? '').trim() ||
+    (phones.publicPhone ?? '').trim() !== (previousPhones.publicPhone ?? '').trim();
+  if (phoneChanged) {
+    await writePhones(account.uid, phones);
+    changed.push('phone numbers');
+  }
+  if (changed.length === 0) return;
+  await writeAudit(
+    admin,
+    'account_edited',
+    `${account.name} <${account.email}>`,
+    `${accountLabel(account)} · ${changed.join('; ')}`,
+  ).catch((e) => console.warn('[TrialWiz] audit write failed (account edit):', e));
+}
+
+/** The signed-in user edits their own details. firestore.rules keep a verified PI's hospital
+ * fixed (it decides which PIs they may authorize) — only an admin can change it. */
+export async function updateOwnAccount(account: UserProfile, edit: AccountEdit, phones: AccountPhones): Promise<void> {
+  const firestore = requireDb();
+  const patch = cleanEdit(edit);
+  if (account.role === 'doctor' && account.status === 'approved') delete patch.facility;
+  delete patch.piTitle; // the PI / Trial Team Doctor label is set by admin
+  if (Object.keys(patch).length) await updateDoc(doc(firestore, USERS_COLLECTION, account.uid), patch);
+  await writePhones(account.uid, phones);
 }

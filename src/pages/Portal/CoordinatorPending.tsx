@@ -36,11 +36,11 @@ export function CoordinatorPending({ user, profile }: { user: User; profile: Use
           <p>
             {rejected
               ? `Your request naming ${profile.requestedDoctorEmail} wasn't approved. Check the email below and try again.`
-              : `Your account is pending approval from ${profile.requestedDoctorEmail}. Once they approve you, you'll be able to add clinical trials for ${profile.facility}, ${profile.city}.`}
+              : `Your coordinator account is saved and pending approval from ${profile.requestedDoctorEmail}. Once they approve you, you'll be able to claim and add clinical trials for ${profile.facility}${profile.city ? `, ${profile.city}` : ''}.`}
           </p>
           {rejected && (
             <>
-              <label htmlFor="cdoc">Approving doctor's email</label>
+              <label htmlFor="cdoc">Your Principal Investigator's email</label>
               <input id="cdoc" type="email" value={doctorEmail} onChange={(e) => setDoctorEmail(e.target.value)} />
               <button className="go" onClick={resend} disabled={busy || !doctorEmail.trim()}>
                 {busy ? 'Sending…' : 'Send request again'}
