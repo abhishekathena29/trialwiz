@@ -43,6 +43,7 @@ import { AdminHeader } from './AdminHeader';
 import { ChangeRoleModal } from './ChangeRoleModal';
 import { CreateAccountModal } from './CreateAccountModal';
 import { DeleteAccountModal } from './DeleteAccountModal';
+import { IndividualsSection } from './IndividualsSection';
 
 const AUDIT_LABEL: Record<string, string> = {
   trial_closed: 'Trial closed',
@@ -54,7 +55,7 @@ const AUDIT_LABEL: Record<string, string> = {
   account_deleted: 'Account deleted',
 };
 
-type PeopleTab = 'all' | 'pis' | 'trialDoctors' | 'coordinators' | 'history';
+type PeopleTab = 'all' | 'pis' | 'trialDoctors' | 'coordinators' | 'individuals' | 'history';
 
 /** Labels for the New-accounts breakdown. Admin accounts aren't counted as registrations. */
 function accountTypeLabel(u: UserProfile): string | null {
@@ -211,6 +212,8 @@ export function AdminDashboard({ user }: { user: User }) {
     () => allUsers.filter((u) => u.role === 'doctor' || (u.role === 'user' && u.userType === 'doctor')),
     [allUsers],
   );
+  // Public accounts that signed up as an individual (or before the type was recorded).
+  const individuals = useMemo(() => allUsers.filter((u) => u.role === 'user' && u.userType !== 'doctor'), [allUsers]);
   /** The Principal Investigators and Trial Doctors sub-tabs share one view, filtered by label. */
   const ofShownKind = (d: UserProfile) => (peopleTab === 'trialDoctors' ? d.piTitle === 'trialDoctor' : d.piTitle !== 'trialDoctor');
   const kindLabel = peopleTab === 'trialDoctors' ? 'Trial Team Doctors' : 'Principal Investigators';
@@ -572,7 +575,7 @@ export function AdminDashboard({ user }: { user: User }) {
             className={`portal-tab ${adminTab === 'doctors' ? 'active' : ''}`}
             onClick={() => setAdminTab('doctors')}
           >
-            🩺 Doctors, PIs & Trial Teams ({allDoctorAccounts.length + coordinators.length})
+            👥 Accounts — Doctors, PIs, Teams & Individuals
             {pendingDoctors.length > 0 && (
               <span className="tab-pending-badge">{pendingDoctors.length}</span>
             )}
@@ -809,7 +812,7 @@ export function AdminDashboard({ user }: { user: User }) {
           <div>
             <div className="admin-section-head">
               <div>
-                <h2 style={{ fontSize: 18, margin: 0, fontWeight: 780 }}>Doctors, Principal Investigators & Trial Teams</h2>
+                <h2 style={{ fontSize: 18, margin: 0, fontWeight: 780 }}>Accounts</h2>
                 <p className="sup" style={{ margin: '4px 0 0' }}>
                   Approve self-registered PIs, edit account details, change roles, and create pre-approved accounts for any role
                 </p>
@@ -876,12 +879,22 @@ export function AdminDashboard({ user }: { user: User }) {
               >
                 Trial Coordinators ({coordinators.length})
               </button>
+              <button
+                className={`portal-tab ${peopleTab === 'individuals' ? 'active' : ''}`}
+                onClick={() => setPeopleTab('individuals')}
+              >
+                Individuals ({individuals.length})
+              </button>
               <button className={`portal-tab ${peopleTab === 'history' ? 'active' : ''}`} onClick={() => setPeopleTab('history')}>
                 Approval History ({authHistory.length + teamLog.length})
               </button>
             </div>
 
             {peopleTab === 'all' && <AllDoctorsSection doctors={allDoctorAccounts} phoneOf={phoneOf} onEdit={setEditTarget} />}
+
+            {peopleTab === 'individuals' && (
+              <IndividualsSection individuals={individuals} phoneOf={phoneOf} onEdit={setEditTarget} />
+            )}
 
             {(peopleTab === 'pis' || peopleTab === 'trialDoctors') && (
               <>

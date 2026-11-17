@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { AuditActor } from '../services/audit';
 import { subscribeUserContact, updateAccountByAdmin, updateOwnAccount } from '../services/profiles';
-import { accountLabel, type PiTitle, type UserProfile } from '../types';
+import { accountLabel, type PiTitle, type PublicUserType, type UserProfile } from '../types';
 import { SpecializationOptions } from './SpecializationOptions';
 import '../pages/Admin/Admin.css';
 import '../pages/Portal/Portal.css';
@@ -18,10 +18,7 @@ interface Props {
   onDelete?: () => void;
 }
 
-/** Which accounts have a clinical specialization and a public phone (PIs and doctors). */
-function isClinician(a: UserProfile): boolean {
-  return a.role === 'doctor' || (a.role === 'user' && a.userType === 'doctor');
-}
+
 
 /** Edit an account's name, hospital, location, specialization and phone numbers. */
 export function EditAccountModal({ account, mode, admin, onClose, onSaved, onDelete }: Props) {
@@ -31,6 +28,7 @@ export function EditAccountModal({ account, mode, admin, onClose, onSaved, onDel
   const [stateField, setStateField] = useState(account.state ?? '');
   const [specialization, setSpecialization] = useState(account.specialization ?? '');
   const [piTitle, setPiTitle] = useState<PiTitle>(account.piTitle ?? 'pi');
+  const [userType, setUserType] = useState<PublicUserType>(account.userType === 'doctor' ? 'doctor' : 'individual');
   const [phone, setPhone] = useState('');
   const [publicPhone, setPublicPhone] = useState('');
   const [loadedPhones, setLoadedPhones] = useState<{ phone: string; publicPhone: string } | null>(null);
@@ -50,7 +48,8 @@ export function EditAccountModal({ account, mode, admin, onClose, onSaved, onDel
     [account.uid],
   );
 
-  const clinician = isClinician(account);
+  // PIs and doctors have a clinical specialization and a public phone; follows the type picker.
+  const clinician = account.role === 'doctor' || (account.role === 'user' && userType === 'doctor');
   const hasHospital = account.role !== 'user' && account.role !== 'admin';
   // firestore.rules: a verified PI's hospital decides which PIs they may authorize — admin-only.
   const hospitalLocked = mode === 'self' && account.role === 'doctor' && account.status === 'approved';
@@ -67,6 +66,7 @@ export function EditAccountModal({ account, mode, admin, onClose, onSaved, onDel
       ...(hasHospital && hospitalLocked ? { city, state: stateField } : {}),
       ...(clinician ? { specialization } : {}),
       ...(mode === 'admin' && account.role === 'doctor' ? { piTitle } : {}),
+      ...(mode === 'admin' && account.role === 'user' ? { userType } : {}),
     };
     const phones = { phone, publicPhone: clinician ? publicPhone : '' };
     try {
@@ -125,6 +125,25 @@ export function EditAccountModal({ account, mode, admin, onClose, onSaved, onDel
               >
                 <option value="pi">Principal Investigator</option>
                 <option value="trialDoctor">Trial Team Doctor</option>
+              </select>
+            </div>
+          )}
+
+          {mode === 'admin' && account.role === 'user' && (
+            <div className="form-group">
+              <label htmlFor="edit-usertype">Account type</label>
+              <span className="field-hint">
+                Public Trial Finder account. To make someone a Principal Investigator or coordinator, create that account
+                type instead.
+              </span>
+              <select
+                id="edit-usertype"
+                className="claim-select"
+                value={userType}
+                onChange={(e) => setUserType(e.target.value as PublicUserType)}
+              >
+                <option value="individual">Individual (patient / family / caregiver)</option>
+                <option value="doctor">Referring doctor</option>
               </select>
             </div>
           )}

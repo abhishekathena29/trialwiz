@@ -441,6 +441,8 @@ export interface AccountEdit {
   name?: string;
   /** Admin only, role 'doctor' accounts: PI vs Trial Team Doctor label. */
   piTitle?: PiTitle;
+  /** Admin only, public (role 'user') accounts: Individual vs Referring doctor. */
+  userType?: PublicUserType;
   facility?: string;
   city?: string;
   state?: string;
@@ -507,6 +509,7 @@ export async function updateOwnAccount(account: UserProfile, edit: AccountEdit, 
   const patch = cleanEdit(edit);
   if (account.role === 'doctor' && account.status === 'approved') delete patch.facility;
   delete patch.piTitle; // the PI / Trial Team Doctor label is set by admin
+  delete patch.userType; // so is Individual vs Referring doctor
   if (Object.keys(patch).length) await updateDoc(doc(firestore, USERS_COLLECTION, account.uid), patch);
   await writePhones(account.uid, phones);
 }
