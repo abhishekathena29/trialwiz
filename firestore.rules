@@ -116,17 +116,28 @@ service cloud.firestore {
         (request.resource == null || request.resource.data.uid == uid));
     }
 
-    // Closed-trial repository, one doc per claimed site (doc id == claim id). Publicly readable so
-    // every active list can hide closed sites. Only an approved Principal Investigator may close a
-    // trial — and only one claimed by them, by a coordinator they approved, or at their hospital.
+    // Closed-trial repository, one doc per closed site. Publicly readable so every active list can
+    // hide closed sites. Who may close:
+    //  - an admin: any site (doc id = the claim id, or a `site__…` id for an unclaimed site);
+    //  - an approved Principal Investigator: a claimed site — claimed by them, by a coordinator they
+    //    approved, or at their hospital (doc id = the claim id);
+    //  - whoever submitted a TW- trial, or their PI's team (doc id = `sub__<nctId>`).
+    // Whoever closed it, or an admin, may reopen (delete).
     match /closedTrials/{claimId} {
       allow read: if true;
-      allow create: if isApprovedDoctor() &&
+      allow create: if request.auth != null &&
         request.resource.data.closedByUid == request.auth.uid &&
-        request.resource.data.claimId == claimId &&
-        piMayCloseClaim(claimId);
+        request.resource.data.claimId == claimId && (
+          isAdmin() ||
+          (isApprovedDoctor() && piMayCloseClaim(claimId)) ||
+          creatorMayCloseSubmitted(claimId, request.resource.data));
       allow update: if false;
-      allow delete: if isAdmin() || (isApprovedDoctor() && resource.data.closedByUid == request.auth.uid);
+      allow delete: if isAdmin() || (request.auth != null && resource.data.closedByUid == request.auth.uid);
+    }
+
+    // Admin-only outreach tracker: "have I contacted this doctor", one doc per account.
+    match /adminContacts/{uid} {
+      allow read, write: if isAdmin();
     }
 
     // Locations a PI or team member added to an existing study. Public (merged into the catalogue).
@@ -245,6 +256,15 @@ service cloud.firestore {
         (claim.hospitalName is string && me.facility is string &&
           claim.hospitalName.lower() == me.facility.lower()) ||
         get(/databases/$(database)/documents/users/$(claim.claimedByUid)).data.doctorUid == request.auth.uid);
+    }
+
+    // The creator of a hospital-submitted (TW-) trial — or anyone on their PI's team — closing it.
+    function creatorMayCloseSubmitted(claimId, data) {
+      let path = /databases/$(database)/documents/submittedTrials/$(data.nctId);
+      let t = get(path).data;
+      return claimId == 'sub__' + data.nctId && exists(path) &&
+        data.facility == t.facility &&
+        (t.submittedBy == request.auth.uid || sameTeamAs(t.submittedBy));
     }
 
     function isAdmin() {

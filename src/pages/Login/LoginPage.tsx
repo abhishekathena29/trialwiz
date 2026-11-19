@@ -1,4 +1,4 @@
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, type User } from 'firebase/auth';
+import { createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithEmailAndPassword, signOut, type User } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -86,6 +86,8 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [resetMsg, setResetMsg] = useState('');
+
   const [facility, setFacility] = useState('');
   const [city, setCity] = useState('');
   const [state, setStateField] = useState('');
@@ -95,6 +97,23 @@ export function LoginPage() {
   const [doctorSearchAttempted, setDoctorSearchAttempted] = useState(false);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+
+  async function sendReset() {
+    setErr('');
+    setResetMsg('');
+    if (!auth) return;
+    if (!email.trim()) {
+      setErr('Type your email above first, then tap "Forgot password".');
+      return;
+    }
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+      // Firebase doesn't reveal whether the email has an account — so neither do we.
+      setResetMsg(`If ${email.trim()} has a TrialWiz account, a password reset link is on its way. Check your inbox (and spam).`);
+    } catch (e) {
+      setErr(e instanceof Error ? friendlyAuthError(e.message) : 'Could not send the reset email.');
+    }
+  }
 
   /** Works under a PI, who approves them. */
   const isTeam = role === 'coordinator';
@@ -462,6 +481,12 @@ export function LoginPage() {
                 {passwordsMismatch && <div className="login-err">Passwords don't match yet.</div>}
               </>
             )}
+            {mode === 'signin' && (
+              <button type="button" className="linkbtn forgotpw" onClick={sendReset} disabled={busy}>
+                Forgot password? Email me a reset link
+              </button>
+            )}
+            {resetMsg && <div className="login-ok">{resetMsg}</div>}
             <button className="go" type="submit" disabled={!canSubmit}>
               {busy ? 'Please wait…' : mode === 'signup' ? 'Create account' : 'Log in'}
             </button>

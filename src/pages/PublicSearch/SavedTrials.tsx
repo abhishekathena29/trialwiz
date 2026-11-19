@@ -1,6 +1,5 @@
-import { signOut, type User } from 'firebase/auth';
+import type { User } from 'firebase/auth';
 import type { FavoriteEntry } from '../../hooks/useFavorites';
-import { auth } from '../../firebase';
 import type { TrialSite } from '../../types';
 import { groupByNctId, type GroupedTrial } from '../../utils/groupTrials';
 import { Link } from 'react-router-dom';
@@ -28,9 +27,10 @@ interface Props {
   rows: TrialSite[];
   onOpenDetail: (trial: GroupedTrial) => void;
   onToggleFavorite: (trial: GroupedTrial) => void;
+  onChangePassword?: () => void;
 }
 
-export function SavedTrials({ user, authLoading, favorites, rows, onOpenDetail, onToggleFavorite }: Props) {
+export function SavedTrials({ user, authLoading, favorites, rows, onOpenDetail, onToggleFavorite, onChangePassword }: Props) {
   if (authLoading) {
     return <div className="empty">Checking your session…</div>;
   }
@@ -59,10 +59,15 @@ export function SavedTrials({ user, authLoading, favorites, rows, onOpenDetail, 
       <div className="sechead">
         <h2>Saved trials</h2>
         <span className="cnt">
-          {favorites.length} saved &nbsp;·&nbsp;
-          <button className="signoutlink" onClick={() => auth && signOut(auth)}>
-            sign out
-          </button>
+          {favorites.length} saved
+          {onChangePassword && (
+            <>
+              &nbsp;·&nbsp;
+              <button className="signoutlink" onClick={onChangePassword}>
+                change password
+              </button>
+            </>
+          )}
         </span>
       </div>
       {favorites.length === 0 ? (

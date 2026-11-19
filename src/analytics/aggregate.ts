@@ -41,6 +41,9 @@ export interface DemandAggregate {
   distinctCancerTypes: number;
   byCancer: [string, number][];
   byCity: [string, number][];
+  /** Every location searched, not just the top 10 — for the Cities / regions drill-down. */
+  allCities: [string, number][];
+  allCancers: [string, number][];
   bySetting: [string, number][];
   unmet: UnmetRow[];
 }
@@ -60,6 +63,16 @@ function topN(counts: Record<string, number>, n: number): [string, number][] {
     .slice(0, n);
 }
 
+/** The public app logs "—" when no location was set — i.e. an all-India search. */
+export const NO_LOCATION_LABEL = 'No location set (all India)';
+export function whereLabel(where: string): string {
+  return !where || where === '—' ? NO_LOCATION_LABEL : where;
+}
+/** Real places only — not the all-India / no-location scopes. */
+function isPlace(where: string): boolean {
+  return Boolean(where) && where !== '—' && where !== 'All India';
+}
+
 export function aggregateDemand(records: DemandRecord[]): DemandAggregate {
   const byCancer: Record<string, number> = {};
   const byCity: Record<string, number> = {};
@@ -69,24 +82,27 @@ export function aggregateDemand(records: DemandRecord[]): DemandAggregate {
 
   for (const r of records) {
     byCancer[r.cond] = (byCancer[r.cond] || 0) + 1;
-    byCity[r.where] = (byCity[r.where] || 0) + 1;
+    const w = whereLabel(r.where);
+    byCity[w] = (byCity[w] || 0) + 1;
     const setLabel = LINE_LABELS[r.line] ?? 'Unspecified';
     bySetting[setLabel] = (bySetting[setLabel] || 0) + 1;
     if (r.resultCount === 0) {
       zeroResults += 1;
-      const key = `${r.cond}__${r.where}`;
-      if (!unmetCounts[key]) unmetCounts[key] = { cond: r.cond, where: r.where, searches: 0 };
+      const key = `${r.cond}__${w}`;
+      if (!unmetCounts[key]) unmetCounts[key] = { cond: r.cond, where: w, searches: 0 };
       unmetCounts[key].searches += 1;
     }
   }
 
   return {
     totalSearches: records.length,
-    distinctCities: new Set(records.map((r) => r.where)).size,
+    distinctCities: new Set(records.map((r) => r.where).filter(isPlace)).size,
     zeroResultPct: records.length ? Math.round((zeroResults / records.length) * 100) : 0,
     distinctCancerTypes: new Set(records.map((r) => r.cond)).size,
     byCancer: topN(byCancer, 10),
     byCity: topN(byCity, 10),
+    allCities: topN(byCity, Infinity),
+    allCancers: topN(byCancer, Infinity),
     bySetting: Object.entries(bySetting).sort((a, b) => b[1] - a[1]),
     unmet: Object.values(unmetCounts).sort((a, b) => b.searches - a.searches),
   };

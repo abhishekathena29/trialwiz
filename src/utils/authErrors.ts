@@ -3,6 +3,8 @@
 export function friendlyAuthError(message: string): string {
   if (message.includes('auth/email-already-in-use')) return 'An account with this email already exists — try signing in instead.';
   if (message.includes('auth/invalid-credential') || message.includes('auth/wrong-password')) return 'Incorrect email or password.';
+  if (message.includes('auth/requires-recent-login')) return 'For security, sign out and sign in again, then retry.';
+  if (message.includes('auth/missing-email')) return 'Enter your email address first.';
   if (message.includes('auth/user-not-found')) return 'No account found with this email — try creating one instead.';
   if (message.includes('auth/weak-password')) return 'Password should be at least 6 characters.';
   if (message.includes('auth/invalid-email')) return "That doesn't look like a valid email address.";

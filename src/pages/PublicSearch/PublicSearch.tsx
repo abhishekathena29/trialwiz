@@ -1,7 +1,10 @@
 import { useMemo, useRef, useState } from 'react';
+import { signOut } from 'firebase/auth';
 import { Link } from 'react-router-dom';
+import { auth } from '../../firebase';
 import { logDemand } from '../../analytics/demandLog';
 import { logUsage } from '../../analytics/usageLog';
+import { ChangePasswordModal } from '../../components/ChangePasswordModal';
 import { Logo } from '../../components/Logo';
 import { CITIES, matchCity } from '../../data/cities';
 import { REGIONS, normalizeState } from '../../data/regions';
@@ -50,6 +53,7 @@ export function PublicSearch() {
   const [searchResults, setSearchResults] = useState<TrialSite[] | null>(null);
   const [detailTrial, setDetailTrial] = useState<GroupedTrial | null>(null);
   const resultsRef = useRef<HTMLDivElement | null>(null);
+  const [pwOpen, setPwOpen] = useState(false);
 
   function scrollToResults() {
     resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -310,10 +314,10 @@ export function PublicSearch() {
                 users never see it: providers get their dashboard, everyone else their account. */}
             {!user && !authLoading && (
               <>
-                <Link className="navlink" to="/login?mode=signup">
+                <Link className="headbtn primary" to="/login?mode=signup">
                   Sign up
                 </Link>
-                <Link className="accountpill" to="/login" style={{ textDecoration: 'none' }}>
+                <Link className="headbtn" to="/login">
                   Log in
                 </Link>
               </>
@@ -331,6 +335,11 @@ export function PublicSearch() {
             {user && (
               <button className="accountpill" onClick={() => changeSeg('saved')} title="Your saved trials">
                 {user.email}
+              </button>
+            )}
+            {user && (
+              <button className="headbtn" onClick={() => auth && signOut(auth)} title="Sign out of TrialWiz">
+                Sign out
               </button>
             )}
             <span className="modebadge on">live API</span>
@@ -470,10 +479,13 @@ export function PublicSearch() {
             rows={rows}
             onOpenDetail={openDetail}
             onToggleFavorite={handleToggleFavorite}
+            onChangePassword={() => setPwOpen(true)}
           />
         )}
         </div>
       </div>
+
+      {pwOpen && user && <ChangePasswordModal user={user} onClose={() => setPwOpen(false)} onChanged={(m) => window.alert(m)} />}
 
       <footer className="disc">
         <b>An information directory of publicly registered clinical trials.</b> It does not determine eligibility or

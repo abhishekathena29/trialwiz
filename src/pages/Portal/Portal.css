@@ -848,3 +848,51 @@
   background: #eee9f3;
   color: var(--ink2);
 }
+
+/* "My Trials" — PI's own trials, shown first */
+.tw-admin .pi-kpi-item.clickable {
+  cursor: pointer;
+  border-color: #d9c3f3;
+}
+.tw-admin .pi-kpi-item.clickable:hover {
+  border-color: var(--brand);
+}
+.tw-admin .my-trial-why {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--brand-d);
+  background: var(--wash);
+  border-radius: 8px;
+  padding: 3px 9px;
+  margin: -4px 0 8px;
+}
+.tw-admin .no-trials-banner {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  background: var(--accent-w);
+  border: 1.5px solid #f4b3ac;
+  border-radius: var(--r);
+  padding: 16px 18px;
+  margin: 14px 0;
+  color: var(--ink);
+}
+.tw-admin .no-trials-banner .ntb-icon {
+  font-size: 26px;
+  line-height: 1;
+}
+.tw-admin .no-trials-banner b {
+  font-size: 15px;
+  color: #a2372c;
+}
+.tw-admin .no-trials-banner p {
+  margin: 6px 0 10px;
+  font-size: 13px;
+  color: var(--ink2);
+}
+.tw-admin .no-trials-banner .ntb-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}

@@ -1,21 +1,26 @@
 import { signOut, type User } from 'firebase/auth';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   aggregateDemand,
   aggregateUsage,
   displayCount,
   fetchDemandRecords,
   fetchUsageEvents,
+  whereLabel,
   type DemandAggregate,
   type DemandRecord,
   type UsageRecord,
 } from '../../analytics/aggregate';
+import { ChangePasswordModal } from '../../components/ChangePasswordModal';
 import { EditAccountModal } from '../../components/EditAccountModal';
 import { auth } from '../../firebase';
 import { useTrialCatalogue } from '../../hooks/useTrialCatalogue';
 import { useClosedTrials } from '../../hooks/useClosedTrials';
 import { subscribeAuditLog } from '../../services/audit';
-import { reopenTrial } from '../../services/closedTrials';
+import { subscribeAdminContacts, type AdminContactMark } from '../../services/adminContacts';
+import { reopenTrial, siteCloseId, type CloseTarget } from '../../services/closedTrials';
+import { claimMatchesSite } from '../../services/trialClaims';
+import { CloseTrialModal } from '../Portal/CloseTrialModal';
 import { authorizePi, subscribeAllPiAuthorizations } from '../../services/piAuthorization';
 import {
   changeCoordinatorToPi,
@@ -41,6 +46,7 @@ import { AllDoctorsSection } from './AllDoctorsSection';
 import { countUniqueTrials, tallyByCancerType, tallyByCentre } from '../../utils/trialStats';
 import { AdminHeader } from './AdminHeader';
 import { ChangeRoleModal } from './ChangeRoleModal';
+import { ContactedCell } from './ContactedCell';
 import { CreateAccountModal } from './CreateAccountModal';
 import { DeleteAccountModal } from './DeleteAccountModal';
 import { IndividualsSection } from './IndividualsSection';
@@ -89,6 +95,33 @@ function Bars({ rows, mask = true, emptyLabel = 'No searches recorded in this pe
         </div>
       ))}
     </>
+  );
+}
+
+/** A KPI tile that opens a drill-down list. */
+function KpiButton({ active, onClick, children }: { active?: boolean; onClick: () => void; children: ReactNode }) {
+  // `active` undefined = the tile navigates (to an accounts sub-tab) rather than opening a list.
+  const hint = active === undefined ? 'open list ›' : active ? 'hide list ▴' : 'view list ▾';
+  return (
+    <button type="button" className={`kpi clickable${active ? ' active' : ''}`} onClick={onClick} aria-expanded={active}>
+      {children}
+      <div className="kpi-more">{hint}</div>
+    </button>
+  );
+}
+
+function DrillPanel({ title, note, onClose, children }: { title: string; note?: string; onClose: () => void; children: ReactNode }) {
+  return (
+    <div className="card full drill">
+      <div className="drill-head">
+        <h2>{title}</h2>
+        <button type="button" className="btn" style={{ padding: '4px 10px', fontSize: 11.5 }} onClick={onClose}>
+          ✕ Close
+        </button>
+      </div>
+      {note && <p className="sup" style={{ marginTop: -6 }}>{note}</p>}
+      {children}
+    </div>
   );
 }
 
@@ -195,6 +228,25 @@ export function AdminDashboard({ user }: { user: User }) {
   const [deleteTarget, setDeleteTarget] = useState<UserProfile | null>(null);
   const [teamLog, setTeamLog] = useState<TeamApproval[]>([]);
   const [pendingSearch, setPendingSearch] = useState('');
+  const [pwOpen, setPwOpen] = useState(false);
+  const [adminClose, setAdminClose] = useState<{ id: string; target: CloseTarget } | null>(null);
+  type DemandDrill = 'searches' | 'cities' | 'unmet' | 'cancers';
+  const [demandDrill, setDemandDrill] = useState<DemandDrill | null>(null);
+  const toggleDemandDrill = (d: DemandDrill) => setDemandDrill((cur) => (cur === d ? null : d));
+  type AccountsDrill = 'hospitals' | 'claims';
+  const [accountsDrill, setAccountsDrill] = useState<AccountsDrill | null>(null);
+  const toggleAccountsDrill = (d: AccountsDrill) => setAccountsDrill((cur) => (cur === d ? null : d));
+  const peopleTabsRef = useRef<HTMLDivElement | null>(null);
+  /** Jump to an accounts sub-tab (e.g. from a KPI tile) and bring it into view. */
+  function goPeopleTab(t: PeopleTab) {
+    setPeopleTab(t);
+    setAccountsDrill(null);
+    setTimeout(() => peopleTabsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+  }
+  const [contactMarks, setContactMarks] = useState<Map<string, AdminContactMark>>(new Map());
+  useEffect(() => subscribeAdminContacts(setContactMarks), []);
+  const contactedCell = (uid: string) => <ContactedCell uid={uid} mark={contactMarks.get(uid)} adminEmail={user.email ?? ''} />;
+  const rowCls = (uid: string) => (contactMarks.get(uid)?.contacted ? 'row-contacted' : undefined);
   const closedTrials = useClosedTrials();
   const adminActor = useMemo(() => ({ uid: user.uid, email: user.email ?? '', name: 'TrialWiz admin' }), [user]);
 
@@ -312,6 +364,18 @@ export function AdminDashboard({ user }: { user: User }) {
     return set.size;
   }, [approvedDoctors]);
 
+  const hospitalList = useMemo(() => {
+    const byName = new Map<string, { name: string; city: string; people: UserProfile[] }>();
+    for (const d of approvedDoctors) {
+      const name = d.facility?.trim();
+      if (!name) continue;
+      const k = name.toLowerCase();
+      if (!byName.has(k)) byName.set(k, { name, city: d.city ?? '', people: [] });
+      byName.get(k)!.people.push(d);
+    }
+    return [...byName.values()].sort((a, b) => b.people.length - a.people.length || a.name.localeCompare(b.name));
+  }, [approvedDoctors]);
+
   async function handleApproveDoctor(d: UserProfile) {
     const { uid, name } = d;
     setBusyDoctorUid(uid);
@@ -384,6 +448,7 @@ export function AdminDashboard({ user }: { user: User }) {
               <table>
                 <thead>
                   <tr>
+                    <th>Contacted</th>
                     <th>Name</th>
                     <th>Principal Investigator</th>
                     <th>Hospital</th>
@@ -398,7 +463,8 @@ export function AdminDashboard({ user }: { user: User }) {
                   {t.visible.map((c) => {
                     const decision = teamLog.find((h) => h.memberUid === c.uid);
                     return (
-                      <tr key={c.uid}>
+                      <tr key={c.uid} className={rowCls(c.uid)}>
+                        <td>{contactedCell(c.uid)}</td>
                         <td>
                           <b>{c.name}</b>
                           {c.specialization && <div className="sup">{c.specialization}</div>}
@@ -485,8 +551,11 @@ export function AdminDashboard({ user }: { user: User }) {
   const catalogue = useMemo(() => {
     const totalTrials = countUniqueTrials(catalogueRows);
     const submittedRows = catalogueRows.filter((r) => r.nctId.startsWith('TW-'));
-    const centres = tallyByCentre(catalogueRows);
+    const allCentres = tallyByCentre(catalogueRows);
+    // Sponsor-masked "Research Site" / "Local Institution" rows aren't identifiable centres.
+    const centres = allCentres.filter((c) => !c.placeholder);
     return {
+      placeholderCentres: allCentres.length - centres.length,
       totalTrials,
       submittedTrials: countUniqueTrials(submittedRows),
       byCancer: Object.entries(tallyByCancerType(catalogueRows)).sort((a, b) => b[1] - a[1]),
@@ -494,6 +563,16 @@ export function AdminDashboard({ user }: { user: User }) {
       centreCount: centres.length,
     };
   }, [catalogueRows]);
+
+  const [closeSearch, setCloseSearch] = useState('');
+  const { closeMatches, closeMatchesTotal } = useMemo(() => {
+    const q = closeSearch.trim().toLowerCase();
+    if (q.length < 3) return { closeMatches: [], closeMatchesTotal: 0 };
+    const all = catalogueRows.filter((r) =>
+      `${r.nctId} ${r.briefTitle} ${r.facility} ${r.city} ${r.contactName ?? ''}`.toLowerCase().includes(q),
+    );
+    return { closeMatches: all.slice(0, 60), closeMatchesTotal: all.length };
+  }, [closeSearch, catalogueRows]);
 
   function exportCsv() {
     if (!records) return;
@@ -539,6 +618,9 @@ export function AdminDashboard({ user }: { user: User }) {
                 </option>
               ))}
             </select>
+            <span className="lockpill" onClick={() => setPwOpen(true)} title="Change your admin password">
+              🔑 change password
+            </span>
             <span className="lockpill" onClick={() => auth && signOut(auth)}>
               <svg viewBox="0 0 24 24" fill="none">
                 <rect x="5" y="10" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="1.8" />
@@ -601,24 +683,107 @@ export function AdminDashboard({ user }: { user: User }) {
             ) : (
               <>
                 <div className="kpis">
-                  <div className="kpi">
+                  <KpiButton active={demandDrill === 'searches'} onClick={() => toggleDemandDrill('searches')}>
                     <div className="n">{displayCount(agg.totalSearches)}</div>
                     <div className="l">Searches ({periodDays} days)</div>
-                  </div>
-                  <div className="kpi">
+                  </KpiButton>
+                  <KpiButton active={demandDrill === 'cities'} onClick={() => toggleDemandDrill('cities')}>
                     <div className="n">{displayCount(agg.distinctCities)}</div>
                     <div className="l">Cities / regions</div>
-                  </div>
-                  <div className="kpi">
+                  </KpiButton>
+                  <KpiButton active={demandDrill === 'unmet'} onClick={() => toggleDemandDrill('unmet')}>
                     <div className="n warn">{agg.zeroResultPct}%</div>
                     <div className="l">No matching trial</div>
                     <div className="d">unmet demand — the sellable signal</div>
-                  </div>
-                  <div className="kpi">
+                  </KpiButton>
+                  <KpiButton active={demandDrill === 'cancers'} onClick={() => toggleDemandDrill('cancers')}>
                     <div className="n">{displayCount(agg.distinctCancerTypes)}</div>
                     <div className="l">Cancer types searched</div>
-                  </div>
+                  </KpiButton>
                 </div>
+
+                {demandDrill === 'searches' && records && (
+                  <DrillPanel title={`Latest searches (${Math.min(records.length, 100)} of ${records.length})`} onClose={() => setDemandDrill(null)}>
+                    <div className="tablewrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>When</th>
+                            <th>Cancer type</th>
+                            <th>Location</th>
+                            <th>Setting</th>
+                            <th>Results</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {[...records]
+                            .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+                            .slice(0, 100)
+                            .map((r) => (
+                              <tr key={r.id}>
+                                <td>{r.createdAt.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</td>
+                                <td>{r.cond}</td>
+                                <td>{whereLabel(r.where)}</td>
+                                <td>{r.line === 'any' ? '—' : r.line}</td>
+                                <td className={r.resultCount === 0 ? 'gap' : undefined}>{r.resultCount}</td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </DrillPanel>
+                )}
+                {demandDrill === 'cities' && (
+                  <DrillPanel
+                    title={`Every location searched (${agg.allCities.length})`}
+                    note={`The headline counts real cities, regions and centres only (${agg.distinctCities}). Searches with no location set, or "All India", are listed but not counted as a place.`}
+                    onClose={() => setDemandDrill(null)}
+                  >
+                    <Bars rows={agg.allCities} />
+                  </DrillPanel>
+                )}
+                {demandDrill === 'cancers' && (
+                  <DrillPanel title={`Every cancer type searched (${agg.allCancers.length})`} onClose={() => setDemandDrill(null)}>
+                    <Bars rows={agg.allCancers} />
+                  </DrillPanel>
+                )}
+                {demandDrill === 'unmet' && records && (
+                  <DrillPanel
+                    title={`Searches with no matching trial (${records.filter((r) => r.resultCount === 0).length} of ${records.length})`}
+                    note="Every search that returned zero trials, newest first — what people looked for and where."
+                    onClose={() => setDemandDrill(null)}
+                  >
+                    <div className="tablewrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>When</th>
+                            <th>Cancer type</th>
+                            <th>Location</th>
+                            <th>Setting</th>
+                            <th>Spread</th>
+                            <th>Biomarker</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {records
+                            .filter((r) => r.resultCount === 0)
+                            .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+                            .map((r) => (
+                              <tr key={r.id}>
+                                <td>{r.createdAt.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</td>
+                                <td><b>{r.cond}</b></td>
+                                <td>{whereLabel(r.where)}</td>
+                                <td>{r.line === 'any' ? '—' : r.line}</td>
+                                <td>{r.met === 'any' ? '—' : r.met}</td>
+                                <td>{r.bio || '—'}</td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </DrillPanel>
+                )}
 
                 <div className="cols">
                   <div className="card">
@@ -800,7 +965,90 @@ export function AdminDashboard({ user }: { user: User }) {
                       mask={false}
                       emptyLabel="No centres in the catalogue yet."
                     />
+                    {catalogue.placeholderCentres > 0 && (
+                      <div className="sup" style={{ marginTop: 10 }}>
+                        Leaves out {catalogue.placeholderCentres} sponsor-masked sites ("Research Site", "Local
+                        Institution", "GSK Investigational Site"…) — the registry doesn't publish which hospital they are.
+                      </div>
+                    )}
                   </div>
+                </div>
+
+                <div className="sechead2">
+                  <h2>Find &amp; close a trial</h2>
+                  <span className="sup">Admin can close any trial site — claimed or not. It moves to Closed Trials &amp; Audit, where it can be reopened.</span>
+                </div>
+                {actionFeedback && (
+                  <div className="note" style={{ background: '#e3f7e9', color: '#16794b', borderColor: '#a3e6b7' }}>
+                    ✓ {actionFeedback}
+                  </div>
+                )}
+                <div className="card full">
+                  <div className="admin-search-row">
+                    <input
+                      type="search"
+                      className="claim-input"
+                      value={closeSearch}
+                      onChange={(e) => setCloseSearch(e.target.value)}
+                      placeholder="Search by NCT / CTRI id, title, hospital, city or investigator…"
+                      aria-label="Search trials to close"
+                    />
+                  </div>
+                  {closeSearch.trim().length < 3 ? (
+                    <div className="sup">Type at least 3 characters to find a trial.</div>
+                  ) : closeMatches.length === 0 ? (
+                    <div className="sup">No active trial matches "{closeSearch}".</div>
+                  ) : (
+                    <div className="tablewrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Trial</th>
+                            <th>Site</th>
+                            <th>Contact</th>
+                            <th style={{ textAlign: 'right' }}>Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {closeMatches.map((r) => {
+                            const claim = claims.find((c) => claimMatchesSite(c, r.nctId, r));
+                            return (
+                              <tr key={r.key}>
+                                <td>
+                                  <b>{r.nctId}</b>
+                                  <div className="sup">{r.briefTitle}</div>
+                                </td>
+                                <td>
+                                  {[r.facility, r.city].filter(Boolean).join(', ')}
+                                  {claim && <div className="sup">Claimed by {claim.claimedByName}</div>}
+                                </td>
+                                <td>{r.contactName || '—'}</td>
+                                <td style={{ textAlign: 'right' }}>
+                                  <button
+                                    className="btn-danger"
+                                    style={{ padding: '4px 10px', fontSize: 11.5 }}
+                                    onClick={() =>
+                                      setAdminClose({
+                                        id: claim ? claim.id : siteCloseId(r),
+                                        target: { ...r, hospitalName: claim?.hospitalName ?? '' },
+                                      })
+                                    }
+                                  >
+                                    Close trial
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                      {closeMatchesTotal > closeMatches.length && (
+                        <div className="sup" style={{ marginTop: 8 }}>
+                          Showing {closeMatches.length} of {closeMatchesTotal} matching sites — refine the search to narrow it down.
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </>
             )}
@@ -830,31 +1078,129 @@ export function AdminDashboard({ user }: { user: User }) {
 
             {/* KPIs */}
             <div className="kpis" style={{ marginTop: 16 }}>
-              <div className="kpi">
+              <KpiButton onClick={() => goPeopleTab('pis')}>
                 <div className={`n ${pendingDoctors.length > 0 ? 'warn' : ''}`}>{pendingDoctors.length}</div>
                 <div className="l">Pending PI Approvals</div>
                 <div className="d">{pendingDoctors.length > 0 ? 'Action required' : 'All clear'}</div>
-              </div>
-              <div className="kpi">
+              </KpiButton>
+              <KpiButton onClick={() => goPeopleTab('pis')}>
                 <div className="n">{approvedDoctors.length}</div>
                 <div className="l">Verified PIs</div>
-              </div>
-              <div className="kpi">
+              </KpiButton>
+              <KpiButton onClick={() => goPeopleTab('trialDoctors')}>
                 <div className="n">{trialDoctors.length}</div>
                 <div className="l">Trial Team Doctors</div>
-              </div>
-              <div className="kpi">
+              </KpiButton>
+              <KpiButton active={accountsDrill === 'hospitals'} onClick={() => toggleAccountsDrill('hospitals')}>
                 <div className="n">{distinctHospitals}</div>
                 <div className="l">Affiliated Hospitals</div>
-              </div>
-              <div className="kpi">
+              </KpiButton>
+              <KpiButton active={accountsDrill === 'claims'} onClick={() => toggleAccountsDrill('claims')}>
                 <div className="n">{claims.length}</div>
                 <div className="l">Claimed Trials</div>
-              </div>
+              </KpiButton>
+              <KpiButton onClick={() => goPeopleTab('all')}>
+                <div className="n">{allDoctorAccounts.filter((d) => contactMarks.get(d.uid)?.contacted).length}</div>
+                <div className="l">Doctors contacted</div>
+                <div className="d">
+                  {allDoctorAccounts.filter((d) => !contactMarks.get(d.uid)?.contacted).length} not contacted yet
+                </div>
+              </KpiButton>
             </div>
 
+            {accountsDrill === 'hospitals' && (
+              <DrillPanel title={`Affiliated hospitals (${hospitalList.length})`} note="Hospitals with at least one verified PI or Trial Team Doctor." onClose={() => setAccountsDrill(null)}>
+                <div className="tablewrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Hospital</th>
+                        <th>City</th>
+                        <th>Verified PIs / doctors</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {hospitalList.map((h) => (
+                        <tr key={h.name}>
+                          <td><b>{h.name}</b></td>
+                          <td>{h.city || '—'}</td>
+                          <td>{h.people.map((p) => p.name).join(', ')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </DrillPanel>
+            )}
+
+            {accountsDrill === 'claims' && (
+              <DrillPanel
+                title={`Claimed trials (${claims.length})`}
+                note="Every trial site a PI or their team has claimed, newest first. Closing one moves it to the closed-trial repository."
+                onClose={() => setAccountsDrill(null)}
+              >
+                {claims.length === 0 ? (
+                  <div className="sup">No trials have been claimed yet.</div>
+                ) : (
+                  <div className="tablewrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Trial</th>
+                          <th>Site</th>
+                          <th>Claimed by</th>
+                          <th>Public contact</th>
+                          <th>When</th>
+                          <th style={{ textAlign: 'right' }}>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...claims]
+                          .sort((a, b) => (timestampMs(b.claimedAt) ?? 0) - (timestampMs(a.claimedAt) ?? 0))
+                          .map((c) => {
+                            const closed = closedTrials.some((x) => x.claimId === c.id);
+                            return (
+                              <tr key={c.id}>
+                                <td>
+                                  <b>{c.nctId}</b>
+                                  {c.briefTitle && <div className="sup">{c.briefTitle}</div>}
+                                </td>
+                                <td>{[c.facility, c.city].filter(Boolean).join(', ')}</td>
+                                <td>
+                                  {c.claimedByName}
+                                  <div className="sup">
+                                    {c.claimedByTitle ?? ROLE_LABEL[c.claimedByRole] ?? c.claimedByRole} · {c.claimedByEmail}
+                                  </div>
+                                </td>
+                                <td>
+                                  {[c.contactName, c.contactPhone, c.contactEmail].filter(Boolean).join(' · ') || '—'}
+                                </td>
+                                <td>{formatTimestamp(c.claimedAt)}</td>
+                                <td style={{ textAlign: 'right' }}>
+                                  {closed ? (
+                                    <span className="pill closed-pill">Closed</span>
+                                  ) : (
+                                    <button
+                                      className="btn-danger"
+                                      style={{ padding: '4px 10px', fontSize: 11.5 }}
+                                      onClick={() => setAdminClose({ id: c.id, target: c })}
+                                    >
+                                      Close trial
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </DrillPanel>
+            )}
+
             {/* Sub-tabs */}
-            <div className="portal-tabs" style={{ marginTop: 18 }}>
+            <div className="portal-tabs" style={{ marginTop: 18, scrollMarginTop: 12 }} ref={peopleTabsRef}>
               <button className={`portal-tab ${peopleTab === 'all' ? 'active' : ''}`} onClick={() => setPeopleTab('all')}>
                 All Registered Doctors ({allDoctorAccounts.length})
               </button>
@@ -890,7 +1236,15 @@ export function AdminDashboard({ user }: { user: User }) {
               </button>
             </div>
 
-            {peopleTab === 'all' && <AllDoctorsSection doctors={allDoctorAccounts} phoneOf={phoneOf} onEdit={setEditTarget} />}
+            {peopleTab === 'all' && (
+              <AllDoctorsSection
+                doctors={allDoctorAccounts}
+                phoneOf={phoneOf}
+                onEdit={setEditTarget}
+                contactMarks={contactMarks}
+                adminEmail={user.email ?? ''}
+              />
+            )}
 
             {peopleTab === 'individuals' && (
               <IndividualsSection individuals={individuals} phoneOf={phoneOf} onEdit={setEditTarget} />
@@ -927,6 +1281,7 @@ export function AdminDashboard({ user }: { user: User }) {
                       <table>
                         <thead>
                           <tr>
+                            <th>Contacted</th>
                             <th>Doctor Name</th>
                             <th>Hospital / Institution</th>
                             <th>Location</th>
@@ -937,7 +1292,8 @@ export function AdminDashboard({ user }: { user: User }) {
                         </thead>
                         <tbody>
                           {visiblePendingDoctors.filter(ofShownKind).map((d) => (
-                            <tr key={d.uid}>
+                            <tr key={d.uid} className={rowCls(d.uid)}>
+                              <td>{contactedCell(d.uid)}</td>
                               <td><b>{d.name}</b></td>
                               <td>{d.facility || '—'}</td>
                               <td>{[d.city, d.state].filter(Boolean).join(', ') || '—'}</td>
@@ -1007,6 +1363,7 @@ export function AdminDashboard({ user }: { user: User }) {
                       <table>
                         <thead>
                           <tr>
+                            <th>Contacted</th>
                             <th>Doctor Name</th>
                             <th>Hospital / Institution</th>
                             <th>Specialization</th>
@@ -1021,7 +1378,8 @@ export function AdminDashboard({ user }: { user: User }) {
                           {visibleApprovedDoctors.filter(ofShownKind).map((d) => {
                             const team = coordinators.filter((u) => u.doctorUid === d.uid);
                             return (
-                              <tr key={d.uid}>
+                              <tr key={d.uid} className={rowCls(d.uid)}>
+                                <td>{contactedCell(d.uid)}</td>
                                 <td><b>{d.name}</b></td>
                                 <td>{d.facility || '—'}</td>
                                 <td>{d.specialization || '—'}</td>
@@ -1241,7 +1599,7 @@ export function AdminDashboard({ user }: { user: User }) {
             <div className="sechead2" style={{ marginTop: 0 }}>
               <h2>Closed trial repository ({closedTrials.length})</h2>
               <span className="sup">
-                Trial sites a Principal Investigator marked closed — hidden from every active list
+                Trial sites closed by a Principal Investigator, the trial's creator or admin — hidden from every active list
               </span>
             </div>
             <div className="card full">
@@ -1363,6 +1721,19 @@ export function AdminDashboard({ user }: { user: User }) {
           onDeleted={flash}
         />
       )}
+
+      {adminClose && (
+        <CloseTrialModal
+          closeId={adminClose.id}
+          target={adminClose.target}
+          actor={{ uid: user.uid, name: 'TrialWiz admin', email: user.email ?? '' }}
+          badge="Admin action"
+          onClose={() => setAdminClose(null)}
+          onClosed={flash}
+        />
+      )}
+
+      {pwOpen && <ChangePasswordModal user={user} onClose={() => setPwOpen(false)} onChanged={flash} />}
 
       {createDoctorOpen && (
         <CreateAccountModal

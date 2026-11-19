@@ -1,5 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
+import type { AdminContactMark } from '../../services/adminContacts';
 import { accountLabel, type UserProfile } from '../../types';
+import { ContactedCell } from './ContactedCell';
 import { matchesSearch } from '../../utils/search';
 import { formatTimestamp, timestampMs } from '../../utils/timestamps';
 
@@ -33,23 +35,28 @@ interface Props {
   doctors: UserProfile[];
   phoneOf: (uid: string) => ReactNode;
   onEdit?: (account: UserProfile) => void;
+  /** Admin outreach tracker — who has been contacted. */
+  contactMarks: Map<string, AdminContactMark>;
+  adminEmail: string;
 }
 
 /** Admin: every doctor who has an account — PIs (pending, verified, rejected), trial team doctors
  * and referring doctors. */
-export function AllDoctorsSection({ doctors, phoneOf, onEdit }: Props) {
+export function AllDoctorsSection({ doctors, phoneOf, onEdit, contactMarks, adminEmail }: Props) {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
   const [type, setType] = useState<TypeFilter>('all');
+  const [contacted, setContacted] = useState<'all' | 'yes' | 'no'>('all');
 
   const rows = useMemo(
     () =>
       doctors
         .filter((d) => status === 'all' || statusOf(d).key === status)
         .filter((d) => type === 'all' || typeOf(d) === type)
+        .filter((d) => contacted === 'all' || Boolean(contactMarks.get(d.uid)?.contacted) === (contacted === 'yes'))
         .filter((d) => matchesSearch(search, [d.name, d.email, d.facility, d.specialization, d.city, d.requestedDoctorName]))
         .sort((a, b) => (timestampMs(b.createdAt) ?? 0) - (timestampMs(a.createdAt) ?? 0)),
-    [doctors, search, status, type],
+    [doctors, search, status, type, contacted, contactMarks],
   );
 
   return (
@@ -93,6 +100,16 @@ export function AllDoctorsSection({ doctors, phoneOf, onEdit }: Props) {
             <option value="trialDoctor">Trial Team Doctors</option>
             <option value="doctor">Referring doctors</option>
           </select>
+          <select
+            className="claim-select"
+            value={contacted}
+            onChange={(e) => setContacted(e.target.value as 'all' | 'yes' | 'no')}
+            aria-label="Filter by whether you contacted them"
+          >
+            <option value="all">Contacted or not</option>
+            <option value="no">Not contacted yet ({doctors.filter((d) => !contactMarks.get(d.uid)?.contacted).length})</option>
+            <option value="yes">Contacted ({doctors.filter((d) => contactMarks.get(d.uid)?.contacted).length})</option>
+          </select>
         </div>
         {rows.length === 0 ? (
           <div className="sup">{doctors.length === 0 ? 'No doctor accounts yet.' : 'No doctors match this search.'}</div>
@@ -101,6 +118,7 @@ export function AllDoctorsSection({ doctors, phoneOf, onEdit }: Props) {
             <table>
               <thead>
                 <tr>
+                  <th>Contacted</th>
                   <th>Name</th>
                   <th>Type</th>
                   <th>Hospital</th>
@@ -117,7 +135,10 @@ export function AllDoctorsSection({ doctors, phoneOf, onEdit }: Props) {
                 {rows.map((d) => {
                   const st = statusOf(d);
                   return (
-                    <tr key={d.uid}>
+                    <tr key={d.uid} className={contactMarks.get(d.uid)?.contacted ? 'row-contacted' : undefined}>
+                      <td>
+                        <ContactedCell uid={d.uid} mark={contactMarks.get(d.uid)} adminEmail={adminEmail} />
+                      </td>
                       <td>
                         <b>{d.name}</b>
                       </td>

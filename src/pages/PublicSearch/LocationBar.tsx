@@ -107,7 +107,14 @@ export function LocationBar({
       {locMsg && <div className="locmsg show">{locMsg}</div>}
 
       <div className="regionwrap">
-        <div className="regionlabel">Or browse by region</div>
+        <div className="regionhead">
+          <div className="regionlabel">Or browse by region</div>
+          {region && (
+            <button className="clearregion big" onClick={onClearRegion} title="Clear the region filter and show all of India">
+              ✕ Clear {regionState ?? region}
+            </button>
+          )}
+        </div>
         <div className="regionrow">
           {REGION_NAMES.map((name) => {
             const count = regionCounts[name];
@@ -141,9 +148,6 @@ export function LocationBar({
                   </option>
                 ))}
             </select>
-            <button className="clearregion" onClick={onClearRegion}>
-              ✕ clear
-            </button>
           </div>
         )}
       </div>

@@ -36,6 +36,19 @@ export function telHref(phone: string | undefined): string {
  * slash, drop site numbers and IDs, drop generic institutional words and the row's own
  * city name — collapse those to one key without a hardcoded alias table. */
 
+/** Sponsor-masked site names — the registry hides the real hospital behind a placeholder
+ * ("Research Site", "Local Institution - 0012", "GSK Investigational Site", "Site IN0123",
+ * "Investigational Site Number : 3560001"). Several unrelated hospitals in one city can share
+ * the same placeholder, so they're never shown as if they were a named centre. */
+const PLACEHOLDER_FACILITY =
+  /^\s*(research\s+site|local\s+institution(\s*-.*)?|site(\s*(no\.?|number)?\s*[:#]?\s*[a-z]{0,3}\s*[\d-]+)?|([a-z0-9]+\s+)?investigat(ional|ive)\s+site(\s*(number|no\.?)?\s*[:#]?\s*[\d-]*)?)\s*$/i;
+
+export function isPlaceholderFacility(facility: string | undefined): boolean {
+  return PLACEHOLDER_FACILITY.test(facility ?? '');
+}
+
+export const PLACEHOLDER_LABEL = 'Sponsor site — hospital name not published';
+
 export const GENERIC_WORDS = new Set([
   'hospital', 'hospitals', 'centre', 'center', 'institute', 'institution', 'medical',
   'college', 'research', 'national', 'foundation', 'trust', 'clinic', 'clinics', 'memorial',

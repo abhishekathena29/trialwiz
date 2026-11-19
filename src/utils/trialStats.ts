@@ -1,5 +1,5 @@
 import type { TrialSite } from '../types';
-import { centreKey } from './format';
+import { centreKey, isPlaceholderFacility } from './format';
 
 /** Shared "how many trials of X" counters — used by the public Browse views and the admin
  * Trial catalogue card, so both always agree. Counts distinct nctIds, not raw site rows: a
@@ -22,6 +22,8 @@ export interface CentreTally {
   facility: string;
   city: string;
   count: number;
+  /** Sponsor-masked name ("Research Site" …) — not a real, identifiable centre. */
+  placeholder: boolean;
 }
 
 export function tallyByCentre(rows: TrialSite[]): CentreTally[] {
@@ -33,6 +35,7 @@ export function tallyByCentre(rows: TrialSite[]): CentreTally[] {
     info[key] ??= { facility: r.facility, city: r.city };
   }
   return Object.entries(seen)
-    .map(([key, ids]) => ({ key, ...info[key], count: ids.size }))
-    .sort((a, b) => b.count - a.count);
+    .map(([key, ids]) => ({ key, ...info[key], count: ids.size, placeholder: isPlaceholderFacility(info[key].facility) }))
+    // Named hospitals first; sponsor-masked placeholders go last.
+    .sort((a, b) => Number(a.placeholder) - Number(b.placeholder) || b.count - a.count);
 }

@@ -10,41 +10,84 @@ function requireDb() {
   return db;
 }
 
+const norm = (v?: string) => (v ?? '').trim().toLowerCase();
+
 function siteLabel(c: { nctId: string; facility: string; city?: string }): string {
   return `${c.nctId} @ ${[c.facility, c.city].filter(Boolean).join(', ')}`;
 }
 
+/** What gets closed: one site of one trial. */
+export interface CloseTarget {
+  nctId: string;
+  facility: string;
+  city?: string;
+  state?: string;
+  hospitalName?: string;
+  briefTitle?: string;
+  cancerType?: string;
+}
+
+export interface CloseActor {
+  uid: string;
+  name: string;
+  email: string;
+}
+
+function hashKey(s: string): string {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+}
+
+/** Repository doc id for a site that has no claim (admin closes any site). */
+export function siteCloseId(t: Pick<CloseTarget, 'nctId' | 'facility' | 'city'>): string {
+  return `site__${t.nctId.replace(/[^A-Za-z0-9_-]/g, '_')}__${hashKey(`${norm(t.facility)}|${norm(t.city)}`)}`;
+}
+
+/** Repository doc id for a hospital-submitted (TW-) trial closed by whoever created it. */
+export function submittedCloseId(nctId: string): string {
+  return `sub__${nctId}`;
+}
+
 /**
- * Marks a claimed trial site as closed. Only an approved Principal Investigator may do this
- * (enforced in firestore.rules). The closure is stored in the `closedTrials` repository — keyed
- * by the claim id, so it's one per site — and recorded in the audit trail. Every catalogue row
+ * Marks one trial site as closed. Who may do it is enforced in firestore.rules:
+ *  - an admin, any site (doc id: the claim id, or `siteCloseId`);
+ *  - an approved Principal Investigator, a claimed site — their own claim, one at their hospital,
+ *    or one by a coordinator they approved (doc id: the claim id);
+ *  - whoever submitted a TW- trial, or their PI's team (doc id: `submittedCloseId`).
+ * The closure goes to the `closedTrials` repository and the audit trail; every catalogue row
  * matching it disappears from the active lists (public finder, portal, admin catalogue).
  */
-export async function closeTrial(claim: TrialClaim, pi: UserProfile, reason: string): Promise<void> {
+export async function closeTrialSite(id: string, target: CloseTarget, actor: CloseActor, reason: string): Promise<void> {
   const firestore = requireDb();
   const record: Record<string, unknown> = {
-    id: claim.id,
-    claimId: claim.id,
-    nctId: claim.nctId,
-    facility: claim.facility,
-    city: claim.city ?? '',
-    state: claim.state ?? '',
-    hospitalName: claim.hospitalName ?? '',
-    briefTitle: claim.briefTitle ?? '',
-    cancerType: claim.cancerType ?? '',
+    id,
+    claimId: id,
+    nctId: target.nctId,
+    facility: target.facility,
+    city: target.city ?? '',
+    state: target.state ?? '',
+    hospitalName: target.hospitalName ?? '',
+    briefTitle: target.briefTitle ?? '',
+    cancerType: target.cancerType ?? '',
     reason: reason.trim().slice(0, 500),
-    closedByUid: pi.uid,
-    closedByName: pi.name,
-    closedByEmail: pi.email,
+    closedByUid: actor.uid,
+    closedByName: actor.name,
+    closedByEmail: actor.email,
     closedAt: serverTimestamp(),
   };
-  await setDoc(doc(firestore, CLOSED_TRIALS_COLLECTION, claim.id), record);
-  await writeAudit(pi, 'trial_closed', siteLabel(claim), reason.trim() || undefined).catch((e) =>
+  await setDoc(doc(firestore, CLOSED_TRIALS_COLLECTION, id), record);
+  await writeAudit(actor, 'trial_closed', siteLabel(target), reason.trim() || undefined).catch((e) =>
     console.warn('[TrialWiz] audit write failed (trial closed):', e),
   );
 }
 
-/** Puts a closed site back into the active lists. The closing PI or an admin may do this. */
+/** A PI closing a claimed site — the repository doc is keyed by the claim id. */
+export async function closeTrial(claim: TrialClaim, pi: UserProfile, reason: string): Promise<void> {
+  await closeTrialSite(claim.id, claim, { uid: pi.uid, name: pi.name, email: pi.email }, reason);
+}
+
+/** Puts a closed site back into the active lists. Whoever closed it, or an admin, may do this. */
 export async function reopenTrial(
   closed: ClosedTrial,
   actor: { uid: string; email: string; name?: string },
@@ -72,8 +115,6 @@ export function subscribeClosedTrials(onChange: (closed: ClosedTrial[]) => void)
     },
   );
 }
-
-const norm = (v?: string) => (v ?? '').trim().toLowerCase();
 
 /** Same matching rule as `claimMatchesSite`: NCT id + facility, and city when both sides have one. */
 export function isSiteClosed(

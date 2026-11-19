@@ -1,5 +1,5 @@
 import type { TrialSite } from '../../types';
-import { initials } from '../../utils/format';
+import { initials, PLACEHOLDER_LABEL } from '../../utils/format';
 import { tallyByCentre } from '../../utils/trialStats';
 
 export function BrowseByCentre({
@@ -19,12 +19,12 @@ export function BrowseByCentre({
       </div>
       <div className="clist">
         {items.length ? (
-          items.map(({ key, facility, city, count }) => {
+          items.map(({ key, facility, city, count, placeholder }) => {
             return (
               <button key={key} className="crow" onClick={() => onOpenCentre(facility, city)}>
-                <div className="ci">{initials(facility)}</div>
+                <div className="ci">{placeholder ? '?' : initials(facility)}</div>
                 <div className="cn">
-                  <b>{facility}</b>
+                  <b>{placeholder ? `${PLACEHOLDER_LABEL} (${facility})` : facility}</b>
                   <span>{city}</span>
                 </div>
                 <div className="cb">

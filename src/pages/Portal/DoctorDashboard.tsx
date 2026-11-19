@@ -4,6 +4,7 @@ import { CANCERS } from '../../data/cancerTaxonomy';
 import { auth } from '../../firebase';
 import { useClosedTrials } from '../../hooks/useClosedTrials';
 import { useTrialCatalogue } from '../../hooks/useTrialCatalogue';
+import { ChangePasswordModal } from '../../components/ChangePasswordModal';
 import { EditAccountModal } from '../../components/EditAccountModal';
 import { addSiteToTrial, removeAddedSite, subscribeAddedSites, teamPiUidOf, updateAddedSite } from '../../services/addedSites';
 import { reopenTrial } from '../../services/closedTrials';
@@ -15,6 +16,7 @@ import {
   ROLE_LABEL,
   type AddedSite,
   type ClaimPrivateContact,
+  type SubmittedTrial,
   type ClosedTrial,
   type TeamApproval,
   type TrialClaim,
@@ -23,6 +25,7 @@ import {
 import { formatTimestamp, timestampMs } from '../../utils/timestamps';
 import { groupByNctId, type GroupedTrial, type TrialLocation } from '../../utils/groupTrials';
 import { hospitalMatcher } from '../../utils/hospitalMatch';
+import { siteMatchesInvestigator } from '../../utils/piMatch';
 import { SiteFormModal } from './SiteFormModal';
 import { AddTrialForm } from './AddTrialForm';
 import { ClaimTrialModal } from './ClaimTrialModal';
@@ -143,7 +146,7 @@ function ClaimDetails({
 
 type ClaimTarget = { trial: GroupedTrial; claim?: TrialClaim; defaultSiteKey?: string };
 
-type TabKey = 'hospital-trials' | 'claimed-trials' | 'closed-trials' | 'coordinators' | 'hospital-pis' | 'add-trial';
+type TabKey = 'my-trials' | 'hospital-trials' | 'claimed-trials' | 'closed-trials' | 'coordinators' | 'hospital-pis' | 'add-trial';
 type ClaimFilter = 'all' | 'unclaimed' | 'team' | 'mine';
 type SiteEdit = { mode: 'add'; study: GroupedTrial } | { mode: 'edit'; site: AddedSite };
 
@@ -163,7 +166,8 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
   const [busyUid, setBusyUid] = useState<string | null>(null);
 
   // Tabs
-  const [activeTab, setActiveTab] = useState<TabKey>('hospital-trials');
+  // Opens on the PI's own trials — no searching needed to see what's already listed.
+  const [activeTab, setActiveTab] = useState<TabKey>('my-trials');
 
   // Hospital filter state (initialized to profile.facility)
   const initialHospital = profile.facility || '';
@@ -173,6 +177,7 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
   const [claimFilter, setClaimFilter] = useState<ClaimFilter>('all');
   const [siteEdit, setSiteEdit] = useState<SiteEdit | null>(null);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
+  const [pwOpen, setPwOpen] = useState(false);
   const [flashMsg, setFlashMsg] = useState<string | null>(null);
   const [addedSites, setAddedSites] = useState<AddedSite[]>([]);
   const [teamLog, setTeamLog] = useState<TeamApproval[]>([]);
@@ -264,6 +269,41 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
     if (c.claimedByUid === myTeamPiUid) return 'Your Principal Investigator';
     return 'Your trial team';
   }
+
+  /** The PI whose trials "My Trials" shows: this user, or — for a coordinator — the PI they work under. */
+  const teamPi = useMemo(
+    () =>
+      isDoctor
+        ? { name: profile.name, email: profile.email }
+        : { name: profile.requestedDoctorName, email: profile.requestedDoctorEmail },
+    [isDoctor, profile.name, profile.email, profile.requestedDoctorName, profile.requestedDoctorEmail],
+  );
+  const teamPiLabel = isDoctor ? 'you' : teamPi.name || 'your Principal Investigator';
+
+  // "My Trials": every live trial site that is the team's — listed under the PI in the registry
+  // (site contact name or email), claimed by the team, or submitted by the team.
+  const myTrials = useMemo(() => {
+    const why = new Map<string, Set<string>>();
+    const rows = allTrials.filter((r) => {
+      const reasons: string[] = [];
+      const m = siteMatchesInvestigator(r, teamPi);
+      if (m) reasons.push(m === 'email' ? 'Registry contact email is ' + (isDoctor ? 'yours' : `${teamPiLabel}'s`) : `Registry lists ${isDoctor ? 'you' : teamPiLabel} as site investigator`);
+      const claim = claims.find((c) => claimMatchesSite(c, r.nctId, r));
+      if (claim && (claim.claimedByUid === user.uid || isTeamClaim(claim))) reasons.push('Claimed by your team');
+      const sub = r as Partial<SubmittedTrial>;
+      if (
+        r.nctId.startsWith('TW-') &&
+        (sub.submittedBy === user.uid || (myTeamPiUid && (sub.teamPiUid === myTeamPiUid || sub.doctorUid === myTeamPiUid || sub.submittedBy === myTeamPiUid)))
+      )
+        reasons.push('Submitted by your team');
+      if (!reasons.length) return false;
+      const set = why.get(r.nctId) ?? new Set<string>();
+      reasons.forEach((x) => set.add(x));
+      why.set(r.nctId, set);
+      return true;
+    });
+    return { trials: groupByNctId(rows), why };
+  }, [allTrials, teamPi, teamPiLabel, isDoctor, claims, user.uid, isTeamClaim, myTeamPiUid]);
 
   // Site rows at the hospital typed in the filter. Every distinctive word must match the site (or
   // its acronym), so "AIIMS" no longer pulls in Tata Memorial etc. — see hospitalMatcher.
@@ -443,6 +483,139 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
     }
   }
 
+  /** One study card — shared by "My Trials" and "Hospital Clinical Trials". `why` explains, on the
+   * My Trials tab, how the trial was matched to this PI. */
+  function renderTrialCard(trial: GroupedTrial, why?: string) {
+    const siteClaims = trial.sites.map((site) => ({ site, claim: getSiteClaim(trial.nctId, site) }));
+    const anyClaimed = siteClaims.some((x) => x.claim);
+    const totalSites = groupsById.get(trial.nctId)?.sites.length ?? trial.sites.length;
+    const study = groupsById.get(trial.nctId);
+    const hasUnclaimedSite = (study?.sites ?? trial.sites).some((x) => !getSiteClaim(trial.nctId, x));
+
+    return (
+      <div key={trial.key} className={`pi-trial-card ${anyClaimed ? 'claimed' : ''}`}>
+        <div className="pi-trial-top">
+          <div className="pi-trial-pills">
+            <span className="pill on">✓ {trial.overallStatus}</span>
+            {trial.phases.map((p) => (
+              <span className="pill" key={p}>
+                {p}
+              </span>
+            ))}
+            <span className="pill" style={{ background: 'var(--wash)', color: 'var(--brand-d)' }}>
+              {trial.cancerType}
+            </span>
+          </div>
+          <span className="src">{trial.nctId}</span>
+        </div>
+
+        <h3 className="pi-trial-title">{trial.briefTitle}</h3>
+        {why && <div className="my-trial-why">⭐ {why}</div>}
+
+        {totalSites > 1 && (
+          <div className="sup" style={{ marginBottom: 6 }}>
+            Runs at {totalSites} locations in India
+            {trial.sites.length < totalSites ? ` · ${trial.sites.length} matching your hospital` : ''}
+          </div>
+        )}
+
+        {siteClaims.map(({ site, claim }) => {
+          const added = addedByKey.get(site.key);
+          return (
+          <div key={site.key}>
+            <div className="pi-trial-site">
+              <b>📍 {site.facility}</b>
+              {site.city && <span> · {site.city}</span>}
+              {site.state && <span>, {site.state}</span>}
+              {added && (
+                <span className="sup">
+                  {' '}
+                  · location added by {added.addedByName}
+                  {canEditAddedSite(added) && (
+                    <>
+                      {' · '}
+                      <button className="linkbtn" type="button" onClick={() => setSiteEdit({ mode: 'edit', site: added })}>
+                        Edit location
+                      </button>
+                      {!claim && (
+                        <>
+                          {' · '}
+                          <button className="linkbtn" type="button" onClick={() => handleRemoveAddedSite(added)}>
+                            Remove
+                          </button>
+                        </>
+                      )}
+                    </>
+                  )}
+                </span>
+              )}
+            </div>
+            {claim ? (
+              <>
+                <ClaimDetails
+                  claim={claim}
+                  isMine={claim.claimedByUid === user.uid}
+                  teamLabel={teamLabelFor(claim)}
+                  privateContact={privateByClaim.get(claim.id)}
+                />
+                {renderClaimActions(claim, '✏️ Edit Claim Contact Info')}
+              </>
+            ) : (
+              <>
+                <div className="claim-status-box unclaimed">
+                  <div className="unclaimed-text">
+                    <b>Unclaimed at this location:</b> Claim this trial to publish your direct contact
+                    number and verify Principal Investigator study leadership for referring oncologists.
+                  </div>
+                </div>
+                {(site.contactPhone || site.contactName) && (
+                  <div className="pi-registry-contact">
+                    <span className="sup">{added ? 'Location contact:' : 'Registry default contact:'}</span>{' '}
+                    {site.contactName && <span>{site.contactName}{site.contactPhone ? ' · ' : ''}</span>}
+                    {site.contactPhone && <span>📞 {site.contactPhone}</span>}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+          );
+        })}
+
+        {/* Actions */}
+        <div className="pi-trial-actions">
+          {hasUnclaimedSite && (
+            <button
+              className="btn primary"
+              onClick={() => openNewClaim(trial)}
+              title="Choose a location for this trial and add direct contact details"
+            >
+              🛡️ Claim this Trial
+            </button>
+          )}
+          {study && (
+            <button
+              className="btn"
+              onClick={() => setSiteEdit({ mode: 'add', study })}
+              title="This trial runs at a location that's missing or listed wrongly — add the correct one"
+            >
+              ➕ Add a Location
+            </button>
+          )}
+          {!trial.nctId.startsWith('TW-') && (
+            <a
+              className="btn"
+              href={trial.registryUrl || `https://clinicaltrials.gov/study/${trial.nctId}`}
+              target="_blank"
+              rel="noopener"
+            >
+              View Registry Record ↗
+            </a>
+          )}
+        </div>
+      </div>
+    );
+  }
+
     return (
     <div className="tw-admin">
       <PortalHeader
@@ -471,11 +644,20 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
                 Principal Investigator: <b>{profile.requestedDoctorName}</b>
               </p>
             )}
-            <button className="btn" style={{ marginTop: 8, fontSize: 12, padding: '4px 10px' }} onClick={() => setEditProfileOpen(true)}>
-              ✏️ Edit my profile
-            </button>
+            <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+              <button className="btn" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setEditProfileOpen(true)}>
+                ✏️ Edit my profile
+              </button>
+              <button className="btn" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setPwOpen(true)}>
+                🔑 Change password
+              </button>
+            </div>
           </div>
           <div className="pi-kpi-group">
+            <div className="pi-kpi-item clickable" onClick={() => setActiveTab('my-trials')}>
+              <span className="pi-kpi-num">{trialsLoading ? '…' : myTrials.trials.length}</span>
+              <span className="pi-kpi-lbl">{isDoctor ? 'Your Trials' : 'Team Trials'}</span>
+            </div>
             <div className="pi-kpi-item">
               <span className="pi-kpi-num">{hospitalTrials.length}</span>
               <span className="pi-kpi-lbl">Trials at Hospital</span>
@@ -499,8 +681,40 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
           </div>
         )}
 
+        {!trialsLoading && myTrials.trials.length === 0 && (
+          <div className="no-trials-banner">
+            <div className="ntb-icon">⚠️</div>
+            <div>
+              <b>
+                {isDoctor
+                  ? 'There are currently NO trials actively recruiting under you or your trial team on TrialWiz.'
+                  : `There are currently NO trials actively recruiting under ${teamPiLabel}'s trial team on TrialWiz.`}
+              </b>
+              <p>
+                No registry site lists {isDoctor ? 'you' : teamPiLabel} as its investigator, and your team hasn't claimed or
+                added a trial yet. If a trial is running under {isDoctor ? 'you' : 'your PI'}, find it under Hospital Clinical
+                Trials and claim it, or add it as a new trial.
+              </p>
+              <div className="ntb-actions">
+                <button className="btn primary" onClick={() => setActiveTab('hospital-trials')}>
+                  🏥 Find &amp; claim a trial at my hospital
+                </button>
+                <button className="btn" onClick={() => setActiveTab('add-trial')}>
+                  ➕ Add a new trial
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Tab Navigation */}
         <div className="portal-tabs">
+          <button
+            className={`portal-tab ${activeTab === 'my-trials' ? 'active' : ''}`}
+            onClick={() => setActiveTab('my-trials')}
+          >
+            ⭐ {isDoctor ? 'My Trials' : 'My PI\'s Trials'} ({trialsLoading ? '…' : myTrials.trials.length})
+          </button>
           <button
             className={`portal-tab ${activeTab === 'hospital-trials' ? 'active' : ''}`}
             onClick={() => setActiveTab('hospital-trials')}
@@ -546,6 +760,34 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
             ➕ Add New Trial
           </button>
         </div>
+
+        {/* MY TRIALS — the PI's own trials, shown first on login */}
+        {activeTab === 'my-trials' && (
+          <div className="tab-section">
+            <div className="sechead2" style={{ marginTop: 0 }}>
+              <h2>{isDoctor ? 'Your trials already on TrialWiz' : `${teamPiLabel}'s trials already on TrialWiz`}</h2>
+              <span className="sup">
+                Trials where the registry lists {isDoctor ? 'you' : teamPiLabel} as site investigator
+                {teamPi.name ? ` ("${teamPi.name}")` : ''}, plus trials your team has claimed or submitted. Missing one?
+                Find it under Hospital Clinical Trials and claim it.
+              </span>
+            </div>
+            {trialsLoading ? (
+              <div className="card full">
+                <div className="sup">Syncing clinical trials from ClinicalTrials.gov…</div>
+              </div>
+            ) : myTrials.trials.length === 0 ? (
+              <div className="card full" style={{ textAlign: 'center', padding: '36px 20px' }}>
+                <div style={{ fontSize: 32, marginBottom: 8 }}>🔍</div>
+                <b>No actively recruiting trials found under {isDoctor ? 'you' : teamPiLabel} yet.</b>
+              </div>
+            ) : (
+              <div className="trials-listing">
+                {myTrials.trials.map((trial) => renderTrialCard(trial, [...(myTrials.why.get(trial.nctId) ?? [])].join(' · ')))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* TAB 1: HOSPITAL CLINICAL TRIALS */}
         {activeTab === 'hospital-trials' && (
@@ -643,135 +885,7 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
               </div>
             ) : (
               <div className="trials-listing">
-                {visibleTrials.map((trial) => {
-                  const siteClaims = trial.sites.map((site) => ({ site, claim: getSiteClaim(trial.nctId, site) }));
-                  const anyClaimed = siteClaims.some((x) => x.claim);
-                  const totalSites = groupsById.get(trial.nctId)?.sites.length ?? trial.sites.length;
-                  const study = groupsById.get(trial.nctId);
-                  const hasUnclaimedSite = (study?.sites ?? trial.sites).some((x) => !getSiteClaim(trial.nctId, x));
-
-                  return (
-                    <div key={trial.key} className={`pi-trial-card ${anyClaimed ? 'claimed' : ''}`}>
-                      <div className="pi-trial-top">
-                        <div className="pi-trial-pills">
-                          <span className="pill on">✓ {trial.overallStatus}</span>
-                          {trial.phases.map((p) => (
-                            <span className="pill" key={p}>
-                              {p}
-                            </span>
-                          ))}
-                          <span className="pill" style={{ background: 'var(--wash)', color: 'var(--brand-d)' }}>
-                            {trial.cancerType}
-                          </span>
-                        </div>
-                        <span className="src">{trial.nctId}</span>
-                      </div>
-
-                      <h3 className="pi-trial-title">{trial.briefTitle}</h3>
-
-                      {totalSites > 1 && (
-                        <div className="sup" style={{ marginBottom: 6 }}>
-                          Runs at {totalSites} locations in India
-                          {trial.sites.length < totalSites ? ` · ${trial.sites.length} matching your hospital` : ''}
-                        </div>
-                      )}
-
-                      {siteClaims.map(({ site, claim }) => {
-                        const added = addedByKey.get(site.key);
-                        return (
-                        <div key={site.key}>
-                          <div className="pi-trial-site">
-                            <b>📍 {site.facility}</b>
-                            {site.city && <span> · {site.city}</span>}
-                            {site.state && <span>, {site.state}</span>}
-                            {added && (
-                              <span className="sup">
-                                {' '}
-                                · location added by {added.addedByName}
-                                {canEditAddedSite(added) && (
-                                  <>
-                                    {' · '}
-                                    <button className="linkbtn" type="button" onClick={() => setSiteEdit({ mode: 'edit', site: added })}>
-                                      Edit location
-                                    </button>
-                                    {!claim && (
-                                      <>
-                                        {' · '}
-                                        <button className="linkbtn" type="button" onClick={() => handleRemoveAddedSite(added)}>
-                                          Remove
-                                        </button>
-                                      </>
-                                    )}
-                                  </>
-                                )}
-                              </span>
-                            )}
-                          </div>
-                          {claim ? (
-                            <>
-                              <ClaimDetails
-                                claim={claim}
-                                isMine={claim.claimedByUid === user.uid}
-                                teamLabel={teamLabelFor(claim)}
-                                privateContact={privateByClaim.get(claim.id)}
-                              />
-                              {renderClaimActions(claim, '✏️ Edit Claim Contact Info')}
-                            </>
-                          ) : (
-                            <>
-                              <div className="claim-status-box unclaimed">
-                                <div className="unclaimed-text">
-                                  <b>Unclaimed at this location:</b> Claim this trial to publish your direct contact
-                                  number and verify Principal Investigator study leadership for referring oncologists.
-                                </div>
-                              </div>
-                              {(site.contactPhone || site.contactName) && (
-                                <div className="pi-registry-contact">
-                                  <span className="sup">{added ? 'Location contact:' : 'Registry default contact:'}</span>{' '}
-                                  {site.contactName && <span>{site.contactName}{site.contactPhone ? ' · ' : ''}</span>}
-                                  {site.contactPhone && <span>📞 {site.contactPhone}</span>}
-                                </div>
-                              )}
-                            </>
-                          )}
-                        </div>
-                        );
-                      })}
-
-                      {/* Actions */}
-                      <div className="pi-trial-actions">
-                        {hasUnclaimedSite && (
-                          <button
-                            className="btn primary"
-                            onClick={() => openNewClaim(trial)}
-                            title="Choose a location for this trial and add direct contact details"
-                          >
-                            🛡️ Claim this Trial
-                          </button>
-                        )}
-                        {study && (
-                          <button
-                            className="btn"
-                            onClick={() => setSiteEdit({ mode: 'add', study })}
-                            title="This trial runs at a location that's missing or listed wrongly — add the correct one"
-                          >
-                            ➕ Add a Location
-                          </button>
-                        )}
-                        {!trial.nctId.startsWith('TW-') && (
-                          <a
-                            className="btn"
-                            href={trial.registryUrl || `https://clinicaltrials.gov/study/${trial.nctId}`}
-                            target="_blank"
-                            rel="noopener"
-                          >
-                            View Registry Record ↗
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+                {visibleTrials.map((trial) => renderTrialCard(trial))}
               </div>
             )}
           </div>
@@ -907,7 +1021,7 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
                         <b>Reason:</b> {c.reason}
                       </div>
                     )}
-                    {isDoctor && c.closedByUid === user.uid && (
+                    {c.closedByUid === user.uid && (
                       <div className="pi-trial-actions">
                         <button className="btn" onClick={() => handleReopen(c)}>
                           Reopen trial
@@ -1048,7 +1162,7 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
         {activeTab === 'add-trial' && (
           <div className="tab-section">
             <AddTrialForm user={user} profile={profile} />
-            <MySubmittedTrials uid={user.uid} />
+            <MySubmittedTrials uid={user.uid} profile={profile} onFlash={flash} />
           </div>
         )}
       </div>
@@ -1071,7 +1185,13 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
       )}
 
       {closeTarget && (
-        <CloseTrialModal claim={closeTarget} pi={profile} onClose={() => setCloseTarget(null)} />
+        <CloseTrialModal
+          closeId={closeTarget.id}
+          target={closeTarget}
+          actor={{ uid: user.uid, name: profile.name, email: profile.email }}
+          onClose={() => setCloseTarget(null)}
+          onClosed={flash}
+        />
       )}
 
       {siteEdit?.mode === 'add' && (
@@ -1122,6 +1242,8 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
           onClose={() => setSiteEdit(null)}
         />
       )}
+
+      {pwOpen && <ChangePasswordModal user={user} onClose={() => setPwOpen(false)} onChanged={flash} />}
 
       {editProfileOpen && (
         <EditAccountModal account={profile} mode="self" onClose={() => setEditProfileOpen(false)} onSaved={flash} />

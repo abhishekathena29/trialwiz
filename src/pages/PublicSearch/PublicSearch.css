@@ -77,6 +77,32 @@
 .tw-public .navlink:hover {
   text-decoration: underline;
 }
+.tw-public .headbtn {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 7px 16px;
+  border-radius: 20px;
+  border: 1.5px solid var(--brand);
+  background: #fff;
+  color: var(--brand-d);
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+  line-height: 1.2;
+}
+.tw-public .headbtn:hover {
+  background: var(--wash);
+}
+.tw-public .headbtn.primary {
+  background: var(--grad);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 4px 12px rgba(196, 60, 142, 0.25);
+}
+.tw-public .headbtn.primary:hover {
+  filter: brightness(1.05);
+}
 .tw-public .accountpill {
   font-family: inherit;
   font-size: 11.5px;
@@ -234,6 +260,36 @@
   margin-top: 12px;
   padding-top: 12px;
   border-top: 1px dashed var(--line);
+}
+.tw-public .regionhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 9px;
+}
+.tw-public .regionhead .regionlabel {
+  margin-bottom: 0;
+}
+.tw-public .clearregion.big {
+  background: var(--grad);
+  color: #fff;
+  border: none;
+  border-radius: 20px;
+  padding: 8px 18px;
+  font-size: 14px;
+  font-weight: 750;
+  box-shadow: 0 4px 14px rgba(196, 60, 142, 0.3);
+  animation: tw-pop 0.25s ease-out;
+}
+.tw-public .clearregion.big:hover {
+  color: #fff;
+  filter: brightness(1.07);
+}
+@keyframes tw-pop {
+  from { transform: scale(0.85); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
 }
 .tw-public .regionlabel {
   font-size: 11px;
@@ -1386,6 +1442,10 @@ a.address:hover {
   }
   .tw-public .navlink {
     font-size: 10.5px;
+  }
+  .tw-public .headbtn {
+    font-size: 11.5px;
+    padding: 5px 11px;
   }
   .tw-public .accountpill {
     font-size: 10.5px;

@@ -1,4 +1,6 @@
+import { sendPasswordResetEmail } from 'firebase/auth';
 import { useEffect, useRef, useState } from 'react';
+import { auth } from '../firebase';
 import type { AuditActor } from '../services/audit';
 import { subscribeUserContact, updateAccountByAdmin, updateOwnAccount } from '../services/profiles';
 import { accountLabel, type PiTitle, type PublicUserType, type UserProfile } from '../types';
@@ -34,6 +36,17 @@ export function EditAccountModal({ account, mode, admin, onClose, onSaved, onDel
   const [loadedPhones, setLoadedPhones] = useState<{ phone: string; publicPhone: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+
+  async function sendReset() {
+    if (!auth) return;
+    if (!window.confirm(`Email a password reset link to ${account.email}?`)) return;
+    try {
+      await sendPasswordResetEmail(auth, account.email);
+      onSaved?.(`Password reset link sent to ${account.email}.`);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not send the reset email.');
+    }
+  }
 
   const seeded = useRef(false);
   useEffect(
@@ -229,6 +242,18 @@ export function EditAccountModal({ account, mode, admin, onClose, onSaved, onDel
           </div>
 
           {mode === 'admin' && <div className="note" style={{ marginTop: 12 }}>Changes are recorded in the audit trail.</div>}
+
+          {mode === 'admin' && (
+            <div className="note" style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span style={{ flex: 1, minWidth: 200 }}>
+                <b>Password.</b> For security, nobody — not even admin — can see or type another person's password.
+                Send them a reset link and they choose a new one.
+              </span>
+              <button type="button" className="btn" onClick={sendReset} disabled={busy}>
+                🔑 Send password reset email
+              </button>
+            </div>
+          )}
 
           <div className="claim-actions" style={{ marginTop: 18 }}>
             {mode === 'admin' && onDelete && account.role !== 'admin' && (

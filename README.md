@@ -51,14 +51,27 @@ codebase:
   are stored in Firestore in the exact same shape as a registry trial and merged in live via
   [`src/hooks/useTrialCatalogue.ts`](src/hooks/useTrialCatalogue.ts) — the public list, search,
   and the admin catalogue stats all read from this one combined, always-current dataset.
-- A Principal Investigator can **close** a claimed trial site (their own claim, one at their
-  hospital, or one by a coordinator they approved). The closure goes to the `closedTrials`
-  repository and the `auditLog`; `useTrialCatalogue` drops every matching row, so the site leaves
-  all active lists at once. The closing PI or an admin can reopen it. Coordinators can't close.
+- Trial sites can be **closed** by: an **admin** (any site, claimed or not — Trial Catalogue → Find & close
+  a trial, or the Claimed Trials drill-down); an approved **Principal Investigator** (their own claim, one at
+  their hospital, or one by a coordinator they approved); and whoever **submitted** a TW- trial, or their PI's
+  team (Add New Trial → Your submitted trials). The closure goes to the `closedTrials` repository and the
+  `auditLog`; `useTrialCatalogue` drops every matching row, so the site leaves all active lists at once.
+  Whoever closed it, or an admin, can reopen it. Coordinators still can't close registry claims.
 - When claiming a trial, the phone and email can each be **Public** (shown on the Trial Finder)
   or **Personal**. Personal values are never written to the publicly readable `trialClaims` doc —
   they go to `claimPrivateContacts/{claimId}`, readable only by the owner and admins — and the
   public listing falls back to the registry's own site contact.
+- **Provider portal opens on "My Trials"**: the trials already on TrialWiz under that PI (for a coordinator,
+  their PI) — registry sites whose investigator name/email matches (see `src/utils/piMatch.ts`), plus trials
+  the team claimed or submitted. With none, a banner says no trials are actively recruiting under the team.
+- **Passwords:** every signed-in account can change its own password (portal profile card, admin header,
+  public Saved tab); the login page has "Forgot password?"; admins can email any account a reset link from
+  Edit account. Nobody, admin included, can see or set someone else's password directly.
+- **Admin outreach tracker:** a "Contacted" checkbox + private note on every doctor row, stored in the
+  admin-only `adminContacts/{uid}` collection; the All Registered Doctors tab filters by it.
+- Sponsor-masked site names ("Research Site", "Local Institution - 0012", "GSK Investigational Site"…) are
+  flagged by `isPlaceholderFacility` — left out of the admin Top Centres chart and listed last in Browse by
+  centre.
 - Phone numbers are collected when an account is created. PIs and doctors give two: a **public**
   phone (a PI's default contact number on the trials they claim) and a **private** one; other roles
   give one private phone. They live in `userContacts/{uid}`, owner + admin only, because PI
