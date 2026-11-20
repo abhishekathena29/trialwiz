@@ -896,3 +896,21 @@
   gap: 8px;
   flex-wrap: wrap;
 }
+
+/* Admin "View as" banner (ViewAsApp) */
+.viewas-banner {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  padding: 8px 16px;
+  background: #fff4d6;
+  color: #7a4b00;
+  border-bottom: 1px solid #f0d48a;
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: center;
+}
+.viewas-banner a {
+  color: inherit;
+  font-weight: 700;
+}

@@ -1,5 +1,5 @@
 import { signOut, type User } from 'firebase/auth';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode, type SyntheticEvent } from 'react';
 import { CANCERS } from '../../data/cancerTaxonomy';
 import { auth } from '../../firebase';
 import { useClosedTrials } from '../../hooks/useClosedTrials';
@@ -155,7 +155,16 @@ function roleBadge(p: UserProfile): string {
   return '📋 Clinical Research Coordinator';
 }
 
-export function DoctorDashboard({ user, profile }: { user: User; profile: UserProfile }) {
+interface DashboardProps {
+  user: User;
+  profile: UserProfile;
+  /** Admin "View as": render exactly what this user sees, but block every action. */
+  readOnly?: boolean;
+  /** Replaces the header's sign-out pill (View as shows an "exit" link instead). */
+  headerRight?: ReactNode;
+}
+
+export function DoctorDashboard({ user, profile, readOnly = false, headerRight }: DashboardProps) {
   /** A Principal Investigator (role 'doctor') — not a trial team doctor. */
   const isDoctor = profile.role === 'doctor';
   /** The PI whose team this user is on (themselves, if a PI). */
@@ -190,6 +199,16 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
     () => [...teamLog].sort((a, b) => (timestampMs(b.decidedAt) ?? 0) - (timestampMs(a.decidedAt) ?? 0)),
     [teamLog],
   );
+
+  /** Read-only view: swallow clicks on buttons and form submits; links, inputs and selects still work. */
+  function blockAction(e: SyntheticEvent) {
+    const el = e.target as HTMLElement;
+    if (e.type === 'submit' || el.closest('button')) {
+      e.preventDefault();
+      e.stopPropagation();
+      flash('Read-only view — actions are disabled while viewing as this user.');
+    }
+  }
 
   function flash(message: string) {
     setFlashMsg(message);
@@ -620,9 +639,11 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
     <div className="tw-admin">
       <PortalHeader
         right={
-          <span className="lockpill" onClick={() => auth && signOut(auth)}>
-            {user.email} · sign out
-          </span>
+          headerRight ?? (
+            <span className="lockpill" onClick={() => auth && signOut(auth)}>
+              {user.email} · sign out
+            </span>
+          )
         }
       />
 
@@ -644,14 +665,14 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
                 Principal Investigator: <b>{profile.requestedDoctorName}</b>
               </p>
             )}
-            <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+            {!readOnly && <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
               <button className="btn" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setEditProfileOpen(true)}>
                 ✏️ Edit my profile
               </button>
               <button className="btn" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setPwOpen(true)}>
                 🔑 Change password
               </button>
-            </div>
+            </div>}
           </div>
           <div className="pi-kpi-group">
             <div className="pi-kpi-item clickable" onClick={() => setActiveTab('my-trials')}>
@@ -762,6 +783,9 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
         </div>
 
         {/* MY TRIALS — the PI's own trials, shown first on login */}
+        {/* In admin "View as", every button / form inside the tabs is inert (filters and search
+            still work) — admin rules would otherwise let those clicks change this user's data. */}
+        <div onClickCapture={readOnly ? blockAction : undefined} onSubmitCapture={readOnly ? blockAction : undefined}>
         {activeTab === 'my-trials' && (
           <div className="tab-section">
             <div className="sechead2" style={{ marginTop: 0 }}>
@@ -1165,6 +1189,7 @@ export function DoctorDashboard({ user, profile }: { user: User; profile: UserPr
             <MySubmittedTrials uid={user.uid} profile={profile} onFlash={flash} />
           </div>
         )}
+        </div>
       </div>
 
       {/* Claim Trial Modal */}

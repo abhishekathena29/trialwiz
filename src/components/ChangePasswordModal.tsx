@@ -1,6 +1,14 @@
-import { EmailAuthProvider, reauthenticateWithCredential, sendPasswordResetEmail, updatePassword, type User } from 'firebase/auth';
+import {
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  sendPasswordResetEmail,
+  signOut,
+  updatePassword,
+  type User,
+} from 'firebase/auth';
+import { doc, updateDoc } from 'firebase/firestore';
 import { useState } from 'react';
-import { auth } from '../firebase';
+import { auth, db } from '../firebase';
 import { friendlyAuthError } from '../utils/authErrors';
 
 const authErrorMessage = (e: unknown) =>
@@ -12,11 +20,14 @@ interface Props {
   user: User;
   onClose: () => void;
   onChanged?: (message: string) => void;
+  /** First sign-in with a shared initial password: can't be dismissed, and clears the account's
+   * `mustChangePassword` flag once the new password is set. */
+  forced?: boolean;
 }
 
 /** Any signed-in account changes its own password. Firebase requires a recent sign-in for this,
  * so the current password is asked for and used to re-authenticate first. */
-export function ChangePasswordModal({ user, onClose, onChanged }: Props) {
+export function ChangePasswordModal({ user, onClose, onChanged, forced = false }: Props) {
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -36,6 +47,7 @@ export function ChangePasswordModal({ user, onClose, onChanged }: Props) {
     try {
       await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, current));
       await updatePassword(user, next);
+      if (forced && db) await updateDoc(doc(db, 'users', user.uid), { mustChangePassword: false });
       onChanged?.('Password changed. Use the new password next time you sign in.');
       onClose();
     } catch (e) {
@@ -59,17 +71,25 @@ export function ChangePasswordModal({ user, onClose, onChanged }: Props) {
 
   return (
     <div className="tw-admin">
-      <div className="claim-modal-overlay" onClick={onClose}>
+      <div className="claim-modal-overlay" onClick={forced ? undefined : onClose}>
         <div className="claim-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 440 }}>
           <div className="claim-modal-head">
             <div>
-              <h2>Change password</h2>
+              <h2>{forced ? 'Choose your own password' : 'Change password'}</h2>
               <p className="claim-sub">{user.email}</p>
             </div>
-            <button className="claim-close-btn" onClick={onClose} type="button" aria-label="Close">
-              ✕
-            </button>
+            {!forced && (
+              <button className="claim-close-btn" onClick={onClose} type="button" aria-label="Close">
+                ✕
+              </button>
+            )}
           </div>
+          {forced && (
+            <div className="note" style={{ marginTop: 8 }}>
+              Your account was set up with a shared starting password. Choose your own to continue — the starting
+              password stops working after this.
+            </div>
+          )}
 
           {err && <div className="login-err" style={{ margin: '12px 0' }}>{err}</div>}
           {info && (
@@ -80,7 +100,7 @@ export function ChangePasswordModal({ user, onClose, onChanged }: Props) {
 
           <form onSubmit={submit} className="claim-form">
             <div className="form-group">
-              <label htmlFor="pw-current">Current password</label>
+              <label htmlFor="pw-current">{forced ? 'Starting password you were given' : 'Current password'}</label>
               <input
                 id="pw-current"
                 className="claim-input"
@@ -123,9 +143,15 @@ export function ChangePasswordModal({ user, onClose, onChanged }: Props) {
 
             <div className="claim-actions" style={{ marginTop: 18 }}>
               <div style={{ marginLeft: 'auto', display: 'flex', gap: 10 }}>
-                <button type="button" className="btn" onClick={onClose} disabled={busy}>
-                  Cancel
-                </button>
+                {forced ? (
+                  <button type="button" className="btn" onClick={() => auth && signOut(auth)} disabled={busy}>
+                    Sign out
+                  </button>
+                ) : (
+                  <button type="button" className="btn" onClick={onClose} disabled={busy}>
+                    Cancel
+                  </button>
+                )}
                 <button type="submit" className="btn primary" disabled={!canSave}>
                   {busy ? 'Saving…' : 'Change password'}
                 </button>

@@ -135,6 +135,9 @@ export interface UserProfile {
   /** Role 'doctor' only: shown as "Trial Team Doctor" instead of "Principal Investigator".
    * Same permissions either way. */
   piTitle?: PiTitle;
+  /** Set when admin gave the account a shared initial password (scripts/set-initial-password.ts):
+   * the portal makes them choose their own before anything else, then clears it. */
+  mustChangePassword?: boolean;
   /** Set on PI accounts created in bulk from a trial registry (see scripts/create-pi-accounts.ts). */
   importedFrom?: 'ctri';
   /** Doctors and PIs: clinical specialization, e.g. "Medical Oncology". */

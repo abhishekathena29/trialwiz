@@ -1,5 +1,6 @@
 import { signOut } from 'firebase/auth';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
+import { ChangePasswordModal } from '../../components/ChangePasswordModal';
 import { auth, firebaseConfigured } from '../../firebase';
 import { useAuthUser } from '../../hooks/useAuthUser';
 import { useUserProfile } from '../../hooks/useUserProfile';
@@ -8,6 +9,7 @@ import { DoctorPending } from './DoctorPending';
 import { DoctorDashboard } from './DoctorDashboard';
 import './Portal.css';
 import { PortalHeader } from './PortalHeader';
+import { ViewAsApp } from './ViewAsApp';
 
 function SetupNotice() {
   return (
@@ -48,8 +50,8 @@ function NotRegistered({ email }: { email: string | null | undefined }) {
         <div className="login-card">
           <h1>Not a provider account</h1>
           <p>
-            Signed in as <b>{email}</b>, but this account isn't registered as a Principal Investigator, trial
-            coordinator or trial team doctor. Sign out and create a provider account to use this portal.
+            Signed in as <b>{email}</b>, but this account isn't registered as a Principal Investigator, Trial
+            Team Doctor or trial coordinator. Sign out and create a provider account to use this portal.
           </p>
           <button className="go" onClick={() => auth && signOut(auth)}>
             Sign out
@@ -63,11 +65,24 @@ function NotRegistered({ email }: { email: string | null | undefined }) {
 export function PortalApp() {
   const { user, loading: authLoading } = useAuthUser();
   const { profile, loading: profileLoading } = useUserProfile(user);
+  const [params] = useSearchParams();
+  const viewAs = params.get('viewAs');
 
   if (!firebaseConfigured) return <SetupNotice />;
   if (authLoading) return <Loading />;
   if (!user) return <Navigate to="/login" replace />;
+  // Admin "View as" — /portal?viewAs=<uid>, opened from the admin's Edit account window.
+  if (viewAs) return <ViewAsApp admin={user} uid={viewAs} />;
   if (profileLoading) return <Loading />;
+  // Signed in with a shared starting password: choose their own before anything else.
+  if (profile?.mustChangePassword) {
+    return (
+      <div className="tw-admin">
+        <PortalHeader />
+        <ChangePasswordModal user={user} forced onClose={() => {}} />
+      </div>
+    );
+  }
   // Public Trial Finder and admin accounts also have a users/ profile, but aren't providers.
   if (!profile || profile.role === 'user' || profile.role === 'admin') return <NotRegistered email={user.email} />;
 
@@ -78,7 +93,7 @@ export function PortalApp() {
     return <DoctorDashboard user={user} profile={profile} />;
   }
 
-  // coordinator / trial team doctor — both work under a PI who approves them
+  // coordinator — works under a PI who approves them
   if (profile.status !== 'approved') return <CoordinatorPending user={user} profile={profile} />;
 
   return <DoctorDashboard user={user} profile={profile} />;

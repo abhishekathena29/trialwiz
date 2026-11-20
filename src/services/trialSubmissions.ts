@@ -104,6 +104,22 @@ export function subscribePublishedTrials(onChange: (trials: SubmittedTrial[]) =>
   );
 }
 
+/** Admin: every submitted trial, published or retired — for the "who added what" view. */
+export function subscribeAllSubmittedTrials(onChange: (trials: SubmittedTrial[]) => void): () => void {
+  if (!db) {
+    onChange([]);
+    return () => {};
+  }
+  return onSnapshot(
+    collection(db, SUBMITTED_TRIALS_COLLECTION),
+    (snap) => onChange(snap.docs.map((d) => d.data() as SubmittedTrial)),
+    (err) => {
+      console.warn('[TrialWiz] all-submitted-trials subscription failed:', err);
+      onChange([]);
+    },
+  );
+}
+
 /** Live subscription to one coordinator's own submissions (any listing status), for their
  * "My submitted trials" screen. */
 export function subscribeMySubmittedTrials(uid: string, onChange: (trials: SubmittedTrial[]) => void): () => void {

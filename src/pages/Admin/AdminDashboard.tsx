@@ -49,6 +49,10 @@ import { ChangeRoleModal } from './ChangeRoleModal';
 import { ContactedCell } from './ContactedCell';
 import { CreateAccountModal } from './CreateAccountModal';
 import { DeleteAccountModal } from './DeleteAccountModal';
+import { ClaimedAddedSection } from './ClaimedAddedSection';
+import { subscribeAddedSites } from '../../services/addedSites';
+import { subscribeAllSubmittedTrials } from '../../services/trialSubmissions';
+import type { AddedSite, SubmittedTrial } from '../../types';
 import { IndividualsSection } from './IndividualsSection';
 
 const AUDIT_LABEL: Record<string, string> = {
@@ -209,9 +213,16 @@ export function AdminDashboard({ user }: { user: User }) {
   const [usageRecords, setUsageRecords] = useState<UsageRecord[] | null>(null);
   const [error, setError] = useState('');
 
-  const [adminTab, setAdminTab] = useState<'demand' | 'catalogue' | 'doctors' | 'closed'>('demand');
+  const [adminTab, setAdminTab] = useState<'demand' | 'catalogue' | 'doctors' | 'activity' | 'closed'>('demand');
+  // Who claimed / added what — the "Claimed & Added Trials" tab.
+  const [allSubmitted, setAllSubmitted] = useState<SubmittedTrial[]>([]);
+  const [allAddedSites, setAllAddedSites] = useState<AddedSite[]>([]);
+  useEffect(() => subscribeAllSubmittedTrials(setAllSubmitted), []);
+  useEffect(() => subscribeAddedSites(setAllAddedSites), []);
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const [claims, setClaims] = useState<TrialClaim[]>([]);
+  /** Claimed + newly added trials + added locations — one number on the tab and the KPI. */
+  const claimedAddedTotal = claims.length + allSubmitted.length + allAddedSites.length;
   const [createDoctorOpen, setCreateDoctorOpen] = useState(false);
   const [busyDoctorUid, setBusyDoctorUid] = useState<string | null>(null);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
@@ -663,6 +674,12 @@ export function AdminDashboard({ user }: { user: User }) {
             )}
           </button>
           <button
+            className={`portal-tab ${adminTab === 'activity' ? 'active' : ''}`}
+            onClick={() => setAdminTab('activity')}
+          >
+            🛡 Claimed & Added Trials ({claimedAddedTotal})
+          </button>
+          <button
             className={`portal-tab ${adminTab === 'closed' ? 'active' : ''}`}
             onClick={() => setAdminTab('closed')}
           >
@@ -1095,9 +1112,12 @@ export function AdminDashboard({ user }: { user: User }) {
                 <div className="n">{distinctHospitals}</div>
                 <div className="l">Affiliated Hospitals</div>
               </KpiButton>
-              <KpiButton active={accountsDrill === 'claims'} onClick={() => toggleAccountsDrill('claims')}>
-                <div className="n">{claims.length}</div>
-                <div className="l">Claimed Trials</div>
+              <KpiButton onClick={() => setAdminTab('activity')}>
+                <div className="n">{claimedAddedTotal}</div>
+                <div className="l">Claimed & Added Trials</div>
+                <div className="d">
+                  {claims.length} claimed · {allSubmitted.length + allAddedSites.length} added
+                </div>
               </KpiButton>
               <KpiButton onClick={() => goPeopleTab('all')}>
                 <div className="n">{allDoctorAccounts.filter((d) => contactMarks.get(d.uid)?.contacted).length}</div>
@@ -1133,71 +1153,6 @@ export function AdminDashboard({ user }: { user: User }) {
               </DrillPanel>
             )}
 
-            {accountsDrill === 'claims' && (
-              <DrillPanel
-                title={`Claimed trials (${claims.length})`}
-                note="Every trial site a PI or their team has claimed, newest first. Closing one moves it to the closed-trial repository."
-                onClose={() => setAccountsDrill(null)}
-              >
-                {claims.length === 0 ? (
-                  <div className="sup">No trials have been claimed yet.</div>
-                ) : (
-                  <div className="tablewrap">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Trial</th>
-                          <th>Site</th>
-                          <th>Claimed by</th>
-                          <th>Public contact</th>
-                          <th>When</th>
-                          <th style={{ textAlign: 'right' }}>Action</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {[...claims]
-                          .sort((a, b) => (timestampMs(b.claimedAt) ?? 0) - (timestampMs(a.claimedAt) ?? 0))
-                          .map((c) => {
-                            const closed = closedTrials.some((x) => x.claimId === c.id);
-                            return (
-                              <tr key={c.id}>
-                                <td>
-                                  <b>{c.nctId}</b>
-                                  {c.briefTitle && <div className="sup">{c.briefTitle}</div>}
-                                </td>
-                                <td>{[c.facility, c.city].filter(Boolean).join(', ')}</td>
-                                <td>
-                                  {c.claimedByName}
-                                  <div className="sup">
-                                    {c.claimedByTitle ?? ROLE_LABEL[c.claimedByRole] ?? c.claimedByRole} · {c.claimedByEmail}
-                                  </div>
-                                </td>
-                                <td>
-                                  {[c.contactName, c.contactPhone, c.contactEmail].filter(Boolean).join(' · ') || '—'}
-                                </td>
-                                <td>{formatTimestamp(c.claimedAt)}</td>
-                                <td style={{ textAlign: 'right' }}>
-                                  {closed ? (
-                                    <span className="pill closed-pill">Closed</span>
-                                  ) : (
-                                    <button
-                                      className="btn-danger"
-                                      style={{ padding: '4px 10px', fontSize: 11.5 }}
-                                      onClick={() => setAdminClose({ id: c.id, target: c })}
-                                    >
-                                      Close trial
-                                    </button>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </DrillPanel>
-            )}
 
             {/* Sub-tabs */}
             <div className="portal-tabs" style={{ marginTop: 18, scrollMarginTop: 12 }} ref={peopleTabsRef}>
@@ -1589,6 +1544,16 @@ export function AdminDashboard({ user }: { user: User }) {
         )}
 
         {/* TAB 4: CLOSED TRIAL REPOSITORY + AUDIT TRAIL */}
+        {adminTab === 'activity' && (
+          <ClaimedAddedSection
+            claims={claims}
+            submitted={allSubmitted}
+            addedSites={allAddedSites}
+            closedTrials={closedTrials}
+            onCloseTrial={(id, target) => setAdminClose({ id, target })}
+          />
+        )}
+
         {adminTab === 'closed' && (
           <div>
             {actionFeedback && (

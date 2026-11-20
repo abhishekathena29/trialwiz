@@ -256,6 +256,17 @@ export function EditAccountModal({ account, mode, admin, onClose, onSaved, onDel
           )}
 
           <div className="claim-actions" style={{ marginTop: 18 }}>
+            {mode === 'admin' && account.role !== 'admin' && (
+              <a
+                className="btn"
+                href={`/portal?viewAs=${encodeURIComponent(account.uid)}`}
+                target="_blank"
+                rel="noopener"
+                title="Open the portal exactly as this person sees it (read-only)"
+              >
+                👁 View as
+              </a>
+            )}
             {mode === 'admin' && onDelete && account.role !== 'admin' && (
               <button type="button" className="btn-danger" onClick={onDelete} disabled={busy}>
                 Delete account…

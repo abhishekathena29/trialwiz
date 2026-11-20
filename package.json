@@ -11,7 +11,8 @@
     "seed:registry": "tsx scripts/seed-registry.ts",
     "create-admin": "tsx scripts/create-admin.ts",
     "create-pi-accounts": "tsx scripts/create-pi-accounts.ts",
-    "purge-deleted-accounts": "tsx scripts/purge-deleted-accounts.ts"
+    "purge-deleted-accounts": "tsx scripts/purge-deleted-accounts.ts",
+    "set-initial-password": "tsx scripts/set-initial-password.ts"
   },
   "dependencies": {
     "firebase": "^12.17.1",

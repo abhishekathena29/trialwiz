@@ -98,6 +98,14 @@ codebase:
   longer returns others. Trial search also matches the site investigator's name.
 - Admins can edit any account's name, hospital, city/state, specialization and phone numbers
   (audited); users can edit their own profile from the portal (a verified PI's hospital stays fixed).
+- **Shared starting password:** `npm run set-initial-password` (Admin SDK; preview, then `-- --apply`)
+  sets one password (default `123456`) on the bulk-created PI accounts and flags them
+  `mustChangePassword` — the portal won't open until the doctor picks their own, so the shared
+  password works once per account. Accounts that already signed in are skipped.
+- **View as (admin):** Edit account → 👁 View as opens `/portal?viewAs=<uid>` — the portal exactly as
+  that person sees it, read-only (buttons and form submits are blocked; filters and search work).
+- **Claimed & Added Trials (admin tab):** every claim, every newly added trial and every added
+  location in one list — who did it, when, the published contact — with one combined count.
 - Admins can **delete an account** (Edit → Delete account…). They first choose what happens to linked
   coordinators (move to another PI or back to pending) and owned claims / submitted trials / added
   locations (transfer or delete); then the profile, phones and saved trials are removed and a
