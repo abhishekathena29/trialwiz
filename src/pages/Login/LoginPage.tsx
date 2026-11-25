@@ -19,6 +19,7 @@ import type { UserProfile } from '../../types';
 import { friendlyAuthError } from '../../utils/authErrors';
 import '../Admin/Admin.css';
 import '../Portal/Portal.css';
+import { HospitalInput } from '../../components/HospitalInput';
 import { PortalHeader } from '../Portal/PortalHeader';
 
 /** The account types offered on the one login page. Individuals and referring doctors get a
@@ -339,11 +340,14 @@ export function LoginPage() {
             {mode === 'signup' && isPiLike && (
               <>
                 <label htmlFor="lfacility">Hospital / Institution name</label>
-                <input
+                <HospitalInput
                   id="lfacility"
                   value={facility}
-                  onChange={(e) => setFacility(e.target.value)}
-                  placeholder="e.g. AIIMS New Delhi, Tata Memorial Centre"
+                  onChange={setFacility}
+                  onPick={(h) => {
+                    setCity(h.city);
+                    setStateField(h.state);
+                  }}
                   required
                 />
                 <div className="form-row-2">

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { HospitalInput } from '../../components/HospitalInput';
 import { SpecializationOptions } from '../../components/SpecializationOptions';
 import type { AuditActor } from '../../services/audit';
 import { createAccountByAdmin, type NewAccountRole } from '../../services/profiles';
@@ -264,11 +265,15 @@ export function CreateAccountModal({ admin, approvedPis, onClose, onCreated }: P
                 {isTeam && (
                   <span className="field-hint">Leave blank to use the Principal Investigator's hospital.</span>
                 )}
-                <input
+                <HospitalInput
                   id="acct-facility"
                   value={facility}
-                  onChange={(e) => setFacility(e.target.value)}
-                  placeholder={supervisor?.facility || 'e.g. AIIMS New Delhi, Tata Memorial Centre'}
+                  onChange={setFacility}
+                  onPick={(h) => {
+                    setCity(h.city);
+                    setStateField(h.state);
+                  }}
+                  placeholder={supervisor?.facility || undefined}
                   className="claim-input"
                   required={isPiLike}
                 />

@@ -4,6 +4,7 @@ import { auth } from '../firebase';
 import type { AuditActor } from '../services/audit';
 import { subscribeUserContact, updateAccountByAdmin, updateOwnAccount } from '../services/profiles';
 import { accountLabel, type PiTitle, type PublicUserType, type UserProfile } from '../types';
+import { HospitalInput } from './HospitalInput';
 import { SpecializationOptions } from './SpecializationOptions';
 import '../pages/Admin/Admin.css';
 import '../pages/Portal/Portal.css';
@@ -177,11 +178,15 @@ export function EditAccountModal({ account, mode, admin, onClose, onSaved, onDel
                     their colleagues' accounts.
                   </span>
                 )}
-                <input
+                <HospitalInput
                   id="edit-facility"
                   className="claim-input"
                   value={facility}
-                  onChange={(e) => setFacility(e.target.value)}
+                  onChange={setFacility}
+                  onPick={(h) => {
+                    setCity(h.city);
+                    setStateField(h.state);
+                  }}
                   disabled={hospitalLocked}
                 />
               </div>

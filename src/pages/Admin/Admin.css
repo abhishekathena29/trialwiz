@@ -569,3 +569,57 @@
 .tw-admin .drill-head h2 {
   margin: 0;
 }
+
+/* Hospital name type-ahead (components/HospitalInput) — signup, admin create, edit profile. */
+.tw-admin .hosp-combo {
+  position: relative;
+}
+.tw-admin .hosp-combo input {
+  width: 100%;
+  box-sizing: border-box;
+}
+.tw-admin .hosp-list {
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 300px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(40, 20, 70, 0.14);
+  text-align: left;
+}
+.tw-admin .hosp-list li[role='option'] {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.tw-admin .hosp-list li.on {
+  background: var(--wash);
+}
+.tw-admin .hosp-name {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--ink);
+}
+.tw-admin .hosp-where {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.tw-admin .hosp-foot {
+  padding: 7px 10px 5px;
+  font-size: 11.5px;
+  font-style: italic;
+  color: var(--muted);
+  border-top: 1px solid var(--line);
+  margin-top: 2px;
+}
