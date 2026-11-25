@@ -21,7 +21,9 @@ const PLACE_MODIFIERS = new Set(['new', 'navi', 'north', 'south', 'east', 'west'
 const PLACE_WORDS = new Set(
   [...Object.keys(CITIES), ...Object.values(REGIONS).flat(), 'Bangalore', 'Bombay', 'Madras', 'Calcutta', 'Gurgaon']
     .flatMap((n) => words(n))
-    .filter((w) => !PLACE_MODIFIERS.has(w) && !GENERIC.has(w)),
+    // Stopwords too: "and" from "Andaman and Nicobar Islands" made every "… and Research Centre"
+    // query demand a literal "and", so sites spelled with "&" never matched.
+    .filter((w) => !PLACE_MODIFIERS.has(w) && !GENERIC.has(w) && !STOPWORDS.has(w)),
 );
 
 /** Initials of a name, skipping joining words: "All India Institute of Medical Sciences" → "aiims",
@@ -59,7 +61,13 @@ export function hospitalMatcher(query: string): HospitalMatcher {
   const isPlace = (w: string, i: number) =>
     PLACE_WORDS.has(w) || (PLACE_MODIFIERS.has(w) && PLACE_WORDS.has(all[i + 1] ?? ''));
   const places = all.filter((w) => PLACE_WORDS.has(w));
-  const nameOnly = all.filter((w, i) => !isPlace(w, i));
+  // Only the name before the first "(" or "," must match: profile names like "Rajiv Gandhi Cancer
+  // Institute and Research Centre (RGCIRC) Rohini" add an acronym and a locality that registry
+  // sites rarely repeat, and requiring them hid almost every trial at that hospital.
+  const leadAll = words(query.split(/[(,]/)[0]);
+  const leadIsName = leadAll.some((w, i) => !isPlace(w, i) && !STOPWORDS.has(w) && !GENERIC.has(w));
+  const nameSource = leadIsName ? leadAll : all;
+  const nameOnly = nameSource.filter((w, i) => !isPlace(w, i));
   const nonPlace = nameOnly.filter((w) => !STOPWORDS.has(w));
   const significant = nonPlace.filter((w) => !GENERIC.has(w));
   const identity = significant.length > 0 ? significant : nonPlace;

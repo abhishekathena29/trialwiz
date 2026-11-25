@@ -77,6 +77,9 @@
   font-weight: 680;
   cursor: pointer;
 }
+.tw-admin a.lockpill {
+  text-decoration: none;
+}
 .tw-admin .lockpill svg {
   width: 12px;
   height: 12px;

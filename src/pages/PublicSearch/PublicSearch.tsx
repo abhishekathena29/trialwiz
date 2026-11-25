@@ -46,7 +46,11 @@ export function PublicSearch() {
   const [region, setRegion] = useState<string | null>(null);
   const [regionState, setRegionState] = useState<string | null>(null);
 
-  const [seg, setSeg] = useState<Seg>('cancer');
+  // `/?tab=search` (e.g. from the portal header) opens straight on that tab.
+  const [seg, setSeg] = useState<Seg>(() => {
+    const tab = new URLSearchParams(window.location.search).get('tab');
+    return tab === 'centre' || tab === 'search' || tab === 'saved' ? tab : 'cancer';
+  });
   const [group, setGroup] = useState<'solid' | 'blood' | 'pediatric'>('solid');
   const [system, setSystem] = useState('All');
   const [activeList, setActiveList] = useState<ActiveList>(null);
