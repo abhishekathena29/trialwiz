@@ -4,6 +4,7 @@ import { auth } from '../../firebase';
 import { requestDoctor } from '../../services/profiles';
 import type { UserProfile } from '../../types';
 import { PortalHeader } from './PortalHeader';
+import { SignUpAgain } from './SignUpAgain';
 import './Portal.css';
 
 export function CoordinatorPending({ user, profile }: { user: User; profile: UserProfile }) {
@@ -40,11 +41,14 @@ export function CoordinatorPending({ user, profile }: { user: User; profile: Use
           </p>
           {rejected && (
             <>
-              <label htmlFor="cdoc">Your Principal Investigator's email</label>
+              <label htmlFor="cdoc">
+                Your Principal Investigator's email <span className="req">*</span>
+              </label>
               <input id="cdoc" type="email" value={doctorEmail} onChange={(e) => setDoctorEmail(e.target.value)} />
               <button className="go" onClick={resend} disabled={busy || !doctorEmail.trim()}>
                 {busy ? 'Sending…' : 'Send request again'}
               </button>
+              {rejected && <SignUpAgain email={profile.email} />}
             </>
           )}
         </div>

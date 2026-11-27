@@ -17,6 +17,8 @@ import {
   XCircleIcon,
 } from './icons';
 
+import { CallSiteButton } from '../../components/CallSiteButton';
+
 const STALE_AFTER_DAYS = 30;
 
 function formatPhase(p: string): string {
@@ -114,9 +116,10 @@ export function TrialDetail({ trial, onBack, isFavorite, onToggleFavorite }: Pro
   const days = daysSince(trial.lastUpdatePostDate);
   const stale = days != null && days > STALE_AFTER_DAYS;
   const fresh = days == null ? 'confirmation date unknown' : `registry record updated ${days} day${days === 1 ? '' : 's'} ago`;
+  const { getClaim } = useTrialClaims();
   const primary = trial.sites[0];
   const otherSites = trial.sites.slice(1);
-  const tel = telHref(primary?.contactPhone);
+  const primaryPhone = (primary && getClaim(trial.nctId, primary.facility)?.contactPhone) || primary?.contactPhone;
   const { inclusion, exclusion } = parseEligibility(trial.eligibilityCriteria);
   // Saved-trial snapshots and pre-CTRI cached rows carry no registryUrl; NCT ids are derivable.
   const registryUrl = trial.registryUrl ?? (/^NCT\d/.test(trial.nctId) ? `https://clinicaltrials.gov/study/${trial.nctId}` : undefined);
@@ -239,11 +242,7 @@ export function TrialDetail({ trial, onBack, isFavorite, onToggleFavorite }: Pro
       </div>
 
       <div className="acts">
-        {primary?.contactPhone && (
-          <a className="btn primary" href={`tel:${tel}`}>
-            Call nearest site
-          </a>
-        )}
+        {primaryPhone && <CallSiteButton phone={primaryPhone} onUse={() => logUsage('click', 'Call site', trial.nctId)} />}
         {isRegistryTrial ? (
           <a className="btn" href={registryUrl} target="_blank" rel="noopener">
             Registry record

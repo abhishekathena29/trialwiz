@@ -2,6 +2,7 @@ import { signOut, type User } from 'firebase/auth';
 import { auth } from '../../firebase';
 import type { UserProfile } from '../../types';
 import { PortalHeader } from './PortalHeader';
+import { SignUpAgain } from './SignUpAgain';
 import './Portal.css';
 
 export function DoctorPending({ user, profile }: { user: User; profile: UserProfile }) {
@@ -62,6 +63,7 @@ export function DoctorPending({ user, profile }: { user: User; profile: UserProf
           <button className="go" onClick={() => auth && signOut(auth)}>
             Sign out
           </button>
+          {rejected && <SignUpAgain email={profile.email} />}
         </div>
       </div>
     </div>

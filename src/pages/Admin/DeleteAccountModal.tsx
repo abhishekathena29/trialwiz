@@ -32,6 +32,7 @@ export function DeleteAccountModal({ admin, account, approvedPis, onClose, onDel
   const [coordAction, setCoordAction] = useState<'move' | 'pending'>(suggested ? 'move' : 'pending');
   const [dataAction, setDataAction] = useState<'transfer' | 'delete'>(suggested ? 'transfer' : 'delete');
   const [reason, setReason] = useState('');
+  const [allowReuse, setAllowReuse] = useState(false);
   const [confirmText, setConfirmText] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -65,6 +66,7 @@ export function DeleteAccountModal({ admin, account, approvedPis, onClose, onDel
         coordinators: coordAction,
         data: dataAction,
         reason,
+        allowReuse,
       });
       onDeleted(`Deleted ${account.name} <${account.email}> — ${summary}.`);
       onClose();
@@ -179,9 +181,17 @@ export function DeleteAccountModal({ admin, account, approvedPis, onClose, onDel
               />
             </div>
 
+            <label className="checkbox-label" style={{ fontSize: 12.5, margin: '4px 0 12px' }}>
+              <input type="checkbox" checked={allowReuse} onChange={(e) => setAllowReuse(e.target.checked)} />
+              <span>
+                Let <b>{account.email}</b> sign up again — e.g. they registered as the wrong kind of account. Leave
+                unticked to keep this email blocked.
+              </span>
+            </label>
+
             <div className="form-group">
               <label htmlFor="del-confirm">
-                Type <b>{account.email}</b> to confirm
+                Type <b>{account.email}</b> to confirm <span className="req">*</span>
               </label>
               <input
                 id="del-confirm"

@@ -158,6 +158,29 @@ export interface UserProfile {
   authorizedByName?: string;
   authorizedByRole?: 'admin' | 'pi';
   authorizedAt?: unknown;
+  /** Emails of other accounts merged into this one (admin merge) — their registry trials still
+   * count as this person's in "My Trials". */
+  mergedEmails?: string[];
+  mergedFromUids?: string[];
+}
+
+/** A request to merge two accounts that belong to the same person, at `mergeRequests/{id}`.
+ * Raised by the account being kept; the other account confirms it with its own password (so
+ * the requester proves they own both); an admin then performs the merge. */
+export interface MergeRequest {
+  id: string;
+  keepUid: string;
+  keepEmail: string;
+  keepName: string;
+  dupUid: string;
+  dupEmail: string;
+  dupName: string;
+  /** Set by the duplicate account itself, signed in with its own password. */
+  dupConfirmed: boolean;
+  status: 'pending' | 'merged' | 'dismissed';
+  note?: string;
+  createdAt: unknown;
+  decidedAt?: unknown;
 }
 
 /** One PI authorization event, at `piAuthorizations/{id}` — append-only history of who
@@ -264,7 +287,9 @@ export type AuditAction =
   | 'pi_authorized'
   | 'team_member_decided'
   | 'account_edited'
-  | 'account_deleted';
+  | 'account_deleted'
+  | 'accounts_merged'
+  | 'trial_edited';
 
 /** One approve/reject decision on a trial coordinator, at `teamApprovals/{id}` —
  * append-only record of which PI (or admin) approved which team member, and when. */

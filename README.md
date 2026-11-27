@@ -111,6 +111,17 @@ codebase:
   locations (transfer or delete); then the profile, phones and saved trials are removed and a
   `deletedAccounts` tombstone blocks sign-in. A browser can't delete another user's Firebase login,
   so `npm run purge-deleted-accounts` (Admin SDK) erases those afterwards and frees the email.
+- **Merging accounts** (same person, two emails): admin → Accounts → ⇄ Merge accounts (or Edit → Merge…). Claims,
+  submitted trials, added locations, coordinators and teammates' items move to the kept account; blank profile fields
+  and phones are filled in; the removed email is kept in `mergedEmails` so its registry trials still show in My Trials;
+  the other login is deleted (tombstoned). PIs/coordinators can ask for it from the portal (⇄ Merge another account):
+  they sign in to the other account to prove it's theirs, and it lands under **Merge requests** for admin.
+- **Signing up again after a rejection/revoke:** a rejected account's owner can sign up again with the same email and
+  password under any role (e.g. registered as a Trial Team Doctor but is a coordinator) — the old profile is replaced by a
+  new pending one. A deleted account stays blocked unless the admin ticked "Let this email sign up again".
+- Admins can correct a submitted trial's or added location's hospital name, city and contact (Claimed & Added Trials →
+  Edit); audited as `trial_edited`. Hospital fields on Add Trial / location forms suggest the standard hospital name.
+- "Call nearest site" dials on phones; on a computer it just shows the number (with Copy) instead of opening FaceTime.
 - Admins can change a PI into a Trial Coordinator (choosing the supervising PI) or promote a
   coordinator to PI from the Principal Investigator Accounts tab; both are audited.
 - Every public search is silently logged as one aggregate, de-identified event (cancer type,

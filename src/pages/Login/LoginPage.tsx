@@ -3,7 +3,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { logUsage } from '../../analytics/usageLog';
-import { isAccountDeleted } from '../../services/accountDeletion';
+import { deletedAccountState } from '../../services/accountDeletion';
 import { SpecializationOptions } from '../../components/SpecializationOptions';
 import { auth, db, firebaseConfigured } from '../../firebase';
 import { useAuthUser } from '../../hooks/useAuthUser';
@@ -11,10 +11,12 @@ import {
   USERS_COLLECTION,
   createCoordinatorProfile,
   createDoctorProfile,
+  createPublicProfile,
   findDoctorByEmail,
   recordSignIn,
   saveUserPhones,
 } from '../../services/profiles';
+import type { UserCredential } from 'firebase/auth';
 import type { UserProfile } from '../../types';
 import { friendlyAuthError } from '../../utils/authErrors';
 import '../Admin/Admin.css';
@@ -46,6 +48,20 @@ const ROLES: Array<{ key: LoginRole; label: string; hint: string }> = [
     hint: 'A doctor on a hospital trial team. Same features as a Principal Investigator — claim and close trials, publish contacts, approve coordinators. Verified by TrialWiz admin.',
   },
 ];
+
+/**
+ * May this existing login sign up again? Yes when it has no profile (an earlier sign-up that never
+ * finished), when its account was rejected / revoked, or when admin deleted it and released the
+ * email. No when it's a live account (they should log in) or a deleted one admin kept blocked.
+ */
+async function reRegistrationCheck(user: User): Promise<'ok' | 'active' | 'blocked'> {
+  const deleted = await deletedAccountState(user.uid);
+  if (deleted === 'blocked') return 'blocked';
+  if (deleted === 'reusable' || !db) return 'ok';
+  const snap = await getDoc(doc(db, USERS_COLLECTION, user.uid));
+  if (!snap.exists()) return 'ok';
+  return (snap.data() as UserProfile).status === 'rejected' ? 'ok' : 'active';
+}
 
 function isLoginRole(v: string | null): v is LoginRole {
   return v === 'individual' || v === 'doctor' || v === 'pi' || v === 'coordinator' || v === 'trialDoctor';
@@ -80,7 +96,7 @@ export function LoginPage() {
   const [role, setRole] = useState<LoginRole>(isLoginRole(initialRole) ? initialRole : 'individual');
   const [mode, setMode] = useState<'signin' | 'signup'>(params.get('mode') === 'signup' ? 'signup' : 'signin');
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(params.get('email') ?? '');
   const [phone, setPhone] = useState(''); // private phone (every role)
   const [publicPhone, setPublicPhone] = useState(''); // PIs and doctors only
   const [specialization, setSpecialization] = useState(''); // PIs and doctors only
@@ -218,7 +234,32 @@ export function LoginPage() {
     try {
       let signedIn: User;
       if (mode === 'signup') {
-        const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+        let cred: UserCredential;
+        try {
+          cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+        } catch (createErr) {
+          if ((createErr as { code?: string }).code !== 'auth/email-already-in-use') throw createErr;
+          // This email already has a login. If its account was rejected / revoked (e.g. they signed
+          // up under the wrong role), the same person may sign up again — the password proves it.
+          try {
+            cred = await signInWithEmailAndPassword(auth, email.trim(), password);
+          } catch {
+            setErr(
+              'This email already has a TrialWiz account. Log in instead. If that account was not approved or was revoked, enter its password here to sign up again with the right role (forgot it? use “Forgot password” on the log-in screen).',
+            );
+            return;
+          }
+          const check = await reRegistrationCheck(cred.user);
+          if (check !== 'ok') {
+            await signOut(auth);
+            setErr(
+              check === 'active'
+                ? 'This email already has an active TrialWiz account — log in instead. To change its account type, contact TrialWiz admin.'
+                : 'This account was removed by TrialWiz admin. Contact admin if you need to use this email again.',
+            );
+            return;
+          }
+        }
         signedIn = cred.user;
         const phones = twoPhones ? { phone, publicPhone } : { phone };
         if (isPiLike) {
@@ -246,9 +287,8 @@ export function LoginPage() {
             phones,
           );
         } else {
-          await recordSignIn(
+          await createPublicProfile(
             signedIn,
-            'user',
             role === 'doctor' ? 'doctor' : 'individual',
             name,
             role === 'doctor' ? specialization : undefined,
@@ -261,9 +301,14 @@ export function LoginPage() {
         signedIn = cred.user;
         // Deleted by an admin, but the login lingers until purge-deleted-accounts runs — refuse it
         // here, before recordSignIn could recreate a public profile for it.
-        if (await isAccountDeleted(signedIn.uid)) {
+        const deleted = await deletedAccountState(signedIn.uid);
+        if (deleted !== 'active') {
           await signOut(auth);
-          setErr('This account has been removed by TrialWiz admin. Contact admin if you think this is a mistake.');
+          setErr(
+            deleted === 'reusable'
+              ? 'This account was removed by TrialWiz admin, but you can use this email again: choose “New here? Create an account”, pick the right account type and use the same password.'
+              : 'This account has been removed by TrialWiz admin. Contact admin if you think this is a mistake.',
+          );
           return;
         }
         const dest = await destinationFor(signedIn);
@@ -325,8 +370,15 @@ export function LoginPage() {
 
           <form onSubmit={submit}>
             {isSignup && (
+              <span className="req-legend">
+                Fields marked <span className="req">*</span> are required.
+              </span>
+            )}
+            {isSignup && (
               <>
-                <label htmlFor="lname">Full name{isProvider ? '' : ' (optional)'}</label>
+                <label htmlFor="lname">
+                  Full name {isProvider ? <span className="req">*</span> : <span className="sup">(optional)</span>}
+                </label>
                 <input
                   id="lname"
                   value={name}
@@ -339,7 +391,9 @@ export function LoginPage() {
 
             {mode === 'signup' && isPiLike && (
               <>
-                <label htmlFor="lfacility">Hospital / Institution name</label>
+                <label htmlFor="lfacility">
+                  Hospital / Institution name <span className="req">*</span>
+                </label>
                 <HospitalInput
                   id="lfacility"
                   value={facility}
@@ -365,7 +419,9 @@ export function LoginPage() {
 
             {mode === 'signup' && isTeam && (
               <>
-                <label htmlFor="ldocemail">Your Principal Investigator's email</label>
+                <label htmlFor="ldocemail">
+                  Your Principal Investigator's email <span className="req">*</span>
+                </label>
                 <span className="field-hint">
                   Your PI must already have a verified TrialWiz account — they approve you, and the approval is recorded.
                 </span>
@@ -443,7 +499,9 @@ export function LoginPage() {
               </>
             )}
 
-            <label htmlFor="lemail">Email</label>
+            <label htmlFor="lemail">
+              Email {isSignup && <span className="req">*</span>}
+            </label>
             <input
               id="lemail"
               type="email"
@@ -452,7 +510,9 @@ export function LoginPage() {
               autoComplete="username"
               required
             />
-            <label htmlFor="lpass">Password</label>
+            <label htmlFor="lpass">
+              Password {isSignup && <><span className="req">*</span> <span className="sup">(at least 6 characters)</span></>}
+            </label>
             <div className="passwrap">
               <input
                 id="lpass"
@@ -473,7 +533,9 @@ export function LoginPage() {
             </div>
             {mode === 'signup' && (
               <>
-                <label htmlFor="lpass2">Confirm password</label>
+                <label htmlFor="lpass2">
+                  Confirm password <span className="req">*</span>
+                </label>
                 <input
                   id="lpass2"
                   type={showPassword ? 'text' : 'password'}

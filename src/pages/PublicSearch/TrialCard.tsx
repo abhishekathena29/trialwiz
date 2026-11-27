@@ -5,6 +5,7 @@ import type { GroupedTrial, TrialLocation } from '../../utils/groupTrials';
 import { daysSince, telHref } from '../../utils/format';
 import { printTrial } from '../../utils/printTrial';
 import { HeartIcon } from './icons';
+import { CallSiteButton } from '../../components/CallSiteButton';
 
 const STALE_AFTER_DAYS = 30;
 
@@ -185,11 +186,7 @@ export function TrialCard({ trial, onOpenDetail, isFavorite, onToggleFavorite }:
         </span>
       </div>
       <div className="acts">
-        {primary?.contactPhone && (
-          <a className="btn primary" href={`tel:${tel}`} onClick={() => logUsage('click', 'Call site', trial.nctId)}>
-            Call nearest site
-          </a>
-        )}
+        {primaryPhone && <CallSiteButton phone={primaryPhone} onUse={() => logUsage('click', 'Call site', trial.nctId)} />}
         {isRegistryTrial ? (
           <a
             className="btn"

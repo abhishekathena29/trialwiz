@@ -4,6 +4,7 @@ import { CANCERS, groupOf } from '../../data/cancerTaxonomy';
 import { CITIES, matchCity } from '../../data/cities';
 import { generateSubmittedTrialId, submitTrial } from '../../services/trialSubmissions';
 import type { LineOfTherapy, UserProfile } from '../../types';
+import { HospitalInput } from '../../components/HospitalInput';
 import './Portal.css';
 
 const STATUS_OPTIONS = ['RECRUITING', 'NOT_YET_RECRUITING', 'ACTIVE_NOT_RECRUITING', 'ENROLLING_BY_INVITATION'];
@@ -142,14 +143,18 @@ export function AddTrialForm({ user, profile, onSubmitted }: { user: User; profi
       <h2>Add a clinical trial</h2>
       {done && <div className="note">Trial submitted — it's now live in the public Trial Finder.</div>}
       {err && <div className="login-err">{err}</div>}
+      <span className="req-legend">
+        Fields marked <span className="req">*</span> are required. Pick the hospital from the suggestions so it’s saved under its
+        standard name.
+      </span>
       <form onSubmit={submit}>
         <div className="form-grid">
           <div className="span2">
-            <label htmlFor="title">Trial title</label>
+            <label htmlFor="title">Trial title <span className="req">*</span></label>
             <input id="title" value={briefTitle} onChange={(e) => setBriefTitle(e.target.value)} required />
           </div>
           <div className="span2">
-            <label>Cancer category</label>
+            <label>Cancer category <span className="req">*</span></label>
             <div className="roletoggle">
               <button
                 type="button"
@@ -175,7 +180,7 @@ export function AddTrialForm({ user, profile, onSubmitted }: { user: User; profi
             </div>
           </div>
           <div>
-            <label htmlFor="cancerType">Cancer type</label>
+            <label htmlFor="cancerType">Cancer type <span className="req">*</span></label>
             <select id="cancerType" value={cancerType} onChange={(e) => setCancerType(e.target.value)}>
               {filteredCancers.map((c) => (
                 <option key={c} value={c}>
@@ -185,7 +190,7 @@ export function AddTrialForm({ user, profile, onSubmitted }: { user: User; profi
             </select>
           </div>
           <div>
-            <label htmlFor="status">Recruitment status</label>
+            <label htmlFor="status">Recruitment status <span className="req">*</span></label>
             <select id="status" value={overallStatus} onChange={(e) => setOverallStatus(e.target.value)}>
               {STATUS_OPTIONS.map((s) => (
                 <option key={s} value={s}>
@@ -209,11 +214,20 @@ export function AddTrialForm({ user, profile, onSubmitted }: { user: User; profi
             </div>
           </div>
           <div>
-            <label htmlFor="facility">Facility / hospital</label>
-            <input id="facility" value={facility} onChange={(e) => setFacility(e.target.value)} required />
+            <label htmlFor="facility">Facility / hospital <span className="req">*</span></label>
+            <HospitalInput
+              id="facility"
+              value={facility}
+              onChange={setFacility}
+              onPick={(h) => {
+                setCity(h.city);
+                setState(h.state);
+              }}
+              required
+            />
           </div>
           <div>
-            <label htmlFor="city">City</label>
+            <label htmlFor="city">City <span className="req">*</span></label>
             <input id="city" value={city} onChange={(e) => setCity(e.target.value)} required />
           </div>
           <div>

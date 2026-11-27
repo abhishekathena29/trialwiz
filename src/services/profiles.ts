@@ -65,6 +65,32 @@ export async function recordSignIn(
   }
 }
 
+/**
+ * A public Trial Finder profile (individual / referring doctor), written unconditionally — used on
+ * sign-up, including when someone whose provider account was rejected signs up again as a public
+ * account (`recordSignIn` would only stamp the existing profile).
+ */
+export async function createPublicProfile(
+  user: User,
+  userType: PublicUserType,
+  name?: string,
+  specialization?: string,
+): Promise<void> {
+  const firestore = requireDb();
+  const email = user.email ?? '';
+  await setDoc(doc(firestore, USERS_COLLECTION, user.uid), {
+    uid: user.uid,
+    email,
+    name: name?.trim() || user.displayName || email.split('@')[0],
+    role: 'user',
+    userType,
+    ...(userType === 'doctor' && specialization?.trim() ? { specialization: specialization.trim() } : {}),
+    signInProvider: user.providerData[0]?.providerId ?? 'password',
+    createdAt: serverTimestamp(),
+    lastLoginAt: serverTimestamp(),
+  });
+}
+
 export interface AccountPhones {
   /** Private phone — owner + admin only. */
   phone?: string;

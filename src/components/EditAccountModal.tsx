@@ -19,12 +19,14 @@ interface Props {
   onSaved?: (message: string) => void;
   /** Admin mode: opens the delete-account flow (shown as a danger button). */
   onDelete?: () => void;
+  /** Admin: merge this account with another one of the same person's. */
+  onMerge?: () => void;
 }
 
 
 
 /** Edit an account's name, hospital, location, specialization and phone numbers. */
-export function EditAccountModal({ account, mode, admin, onClose, onSaved, onDelete }: Props) {
+export function EditAccountModal({ account, mode, admin, onClose, onSaved, onDelete, onMerge }: Props) {
   const [name, setName] = useState(account.name ?? '');
   const [facility, setFacility] = useState(account.facility ?? '');
   const [city, setCity] = useState(account.city ?? '');
@@ -120,6 +122,9 @@ export function EditAccountModal({ account, mode, admin, onClose, onSaved, onDel
         {err && <div className="login-err" style={{ margin: '12px 0' }}>{err}</div>}
 
         <form onSubmit={submit} className="claim-form">
+          <span className="req-legend">
+            Fields marked <span className="req">*</span> are required.
+          </span>
           <div className="form-group">
             <label htmlFor="edit-name">
               Full name <span className="req">*</span>
@@ -165,7 +170,9 @@ export function EditAccountModal({ account, mode, admin, onClose, onSaved, onDel
           {hasHospital && (
             <>
               <div className="form-group">
-                <label htmlFor="edit-facility">Hospital / Institution</label>
+                <label htmlFor="edit-facility">
+                  Hospital / Institution {account.role === 'doctor' && <span className="req">*</span>}
+                </label>
                 {hospitalLocked && (
                   <span className="field-hint">
                     A verified Principal Investigator's hospital can only be changed by TrialWiz admin — contact admin to
@@ -271,6 +278,11 @@ export function EditAccountModal({ account, mode, admin, onClose, onSaved, onDel
               >
                 👁 View as
               </a>
+            )}
+            {mode === 'admin' && onMerge && account.role !== 'admin' && (
+              <button type="button" className="btn" onClick={onMerge} disabled={busy} title="Same person registered twice with different emails">
+                ⇄ Merge…
+              </button>
             )}
             {mode === 'admin' && onDelete && account.role !== 'admin' && (
               <button type="button" className="btn-danger" onClick={onDelete} disabled={busy}>

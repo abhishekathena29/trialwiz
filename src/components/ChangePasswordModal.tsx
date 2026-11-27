@@ -99,8 +99,13 @@ export function ChangePasswordModal({ user, onClose, onChanged, forced = false }
           )}
 
           <form onSubmit={submit} className="claim-form">
+          <span className="req-legend">
+            Fields marked <span className="req">*</span> are required.
+          </span>
             <div className="form-group">
-              <label htmlFor="pw-current">{forced ? 'Starting password you were given' : 'Current password'}</label>
+              <label htmlFor="pw-current">
+                {forced ? 'Starting password you were given' : 'Current password'} <span className="req">*</span>
+              </label>
               <input
                 id="pw-current"
                 className="claim-input"
@@ -114,7 +119,9 @@ export function ChangePasswordModal({ user, onClose, onChanged, forced = false }
               </button>
             </div>
             <div className="form-group">
-              <label htmlFor="pw-new">New password (at least 6 characters)</label>
+              <label htmlFor="pw-new">
+                New password (at least 6 characters) <span className="req">*</span>
+              </label>
               <input
                 id="pw-new"
                 className="claim-input"
@@ -125,7 +132,9 @@ export function ChangePasswordModal({ user, onClose, onChanged, forced = false }
               />
             </div>
             <div className="form-group">
-              <label htmlFor="pw-confirm">Confirm new password</label>
+              <label htmlFor="pw-confirm">
+                Confirm new password <span className="req">*</span>
+              </label>
               <input
                 id="pw-confirm"
                 className="claim-input"

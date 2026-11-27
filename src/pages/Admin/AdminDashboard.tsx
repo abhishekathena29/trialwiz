@@ -49,11 +49,18 @@ import { ChangeRoleModal } from './ChangeRoleModal';
 import { ContactedCell } from './ContactedCell';
 import { CreateAccountModal } from './CreateAccountModal';
 import { DeleteAccountModal } from './DeleteAccountModal';
-import { ClaimedAddedSection } from './ClaimedAddedSection';
+import { ClaimedAddedSection, type EditTarget } from './ClaimedAddedSection';
+import { SiteFormModal } from '../Portal/SiteFormModal';
+import { updateAddedSite, type SiteFields } from '../../services/addedSites';
+import { updateSubmittedTrialSite } from '../../services/trialSubmissions';
+import { writeAudit } from '../../services/audit';
 import { subscribeAddedSites } from '../../services/addedSites';
 import { subscribeAllSubmittedTrials } from '../../services/trialSubmissions';
 import type { AddedSite, SubmittedTrial } from '../../types';
 import { IndividualsSection } from './IndividualsSection';
+import { MergeAccountsModal } from './MergeAccountsModal';
+import { dismissMergeRequest, subscribeMergeRequests } from '../../services/accountMerge';
+import type { MergeRequest } from '../../types';
 
 const AUDIT_LABEL: Record<string, string> = {
   trial_closed: 'Trial closed',
@@ -63,6 +70,8 @@ const AUDIT_LABEL: Record<string, string> = {
   team_member_decided: 'Team member approved / rejected',
   account_edited: 'Account edited',
   account_deleted: 'Account deleted',
+  accounts_merged: 'Accounts merged',
+  trial_edited: 'Trial details corrected',
 };
 
 type PeopleTab = 'all' | 'pis' | 'trialDoctors' | 'coordinators' | 'individuals' | 'history';
@@ -241,6 +250,11 @@ export function AdminDashboard({ user }: { user: User }) {
   const [pendingSearch, setPendingSearch] = useState('');
   const [pwOpen, setPwOpen] = useState(false);
   const [adminClose, setAdminClose] = useState<{ id: string; target: CloseTarget } | null>(null);
+  const [trialEdit, setTrialEdit] = useState<EditTarget | null>(null);
+  const [mergeDialog, setMergeDialog] = useState<{ keep?: UserProfile; dup?: UserProfile; requestId?: string } | null>(null);
+  const [mergeRequests, setMergeRequests] = useState<MergeRequest[]>([]);
+  useEffect(() => subscribeMergeRequests(setMergeRequests), []);
+  const pendingMerges = useMemo(() => mergeRequests.filter((r) => r.status === 'pending' && r.dupConfirmed), [mergeRequests]);
   type DemandDrill = 'searches' | 'cities' | 'unmet' | 'cancers';
   const [demandDrill, setDemandDrill] = useState<DemandDrill | null>(null);
   const toggleDemandDrill = (d: DemandDrill) => setDemandDrill((cur) => (cur === d ? null : d));
@@ -403,7 +417,7 @@ export function AdminDashboard({ user }: { user: User }) {
   }
 
   async function handleRejectDoctor(uid: string, name: string) {
-    if (!window.confirm(`Are you sure you want to reject Dr. ${name}?`)) return;
+    if (!window.confirm(`Reject / revoke Dr. ${name}? They lose portal access. If they signed up as the wrong kind of account, they can sign up again with the same email and the right role.`)) return;
     setBusyDoctorUid(uid);
     try {
       await rejectDoctor(uid);
@@ -1082,10 +1096,73 @@ export function AdminDashboard({ user }: { user: User }) {
                   Approve self-registered PIs, edit account details, change roles, and create pre-approved accounts for any role
                 </p>
               </div>
-              <button className="btn primary" onClick={() => setCreateDoctorOpen(true)} style={{ marginLeft: 'auto' }}>
+              <button className="btn" onClick={() => setMergeDialog({})} style={{ marginLeft: 'auto' }} title="Same person registered twice with different emails">
+                ⇄ Merge accounts
+              </button>
+              <button className="btn primary" onClick={() => setCreateDoctorOpen(true)}>
                 ➕ Create Account
               </button>
             </div>
+
+            {pendingMerges.length > 0 && (
+              <div className="card full" style={{ marginTop: 14 }}>
+                <h2 style={{ fontSize: 15, margin: '0 0 4px' }}>Merge requests ({pendingMerges.length})</h2>
+                <p className="sup" style={{ margin: '0 0 10px' }}>
+                  Asked for by the account holder, who proved they own both logins by signing in to each.
+                </p>
+                <div className="tablewrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Keep</th>
+                        <th>Merge in &amp; remove</th>
+                        <th>Note</th>
+                        <th>Asked</th>
+                        <th />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendingMerges.map((r) => {
+                        const keep = allUsers.find((u) => u.uid === r.keepUid);
+                        const dup = allUsers.find((u) => u.uid === r.dupUid);
+                        return (
+                          <tr key={r.id}>
+                            <td>
+                              <b>{r.keepName}</b>
+                              <div className="sup">{r.keepEmail}</div>
+                            </td>
+                            <td>
+                              <b>{r.dupName}</b>
+                              <div className="sup">{r.dupEmail}</div>
+                            </td>
+                            <td>{r.note || '—'}</td>
+                            <td>{formatTimestamp(r.createdAt)}</td>
+                            <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                              <button
+                                className="btn primary"
+                                style={{ padding: '4px 10px', fontSize: 11.5, marginRight: 6 }}
+                                disabled={!keep || !dup}
+                                title={!keep || !dup ? 'One of these accounts no longer exists' : undefined}
+                                onClick={() => setMergeDialog({ keep, dup, requestId: r.id })}
+                              >
+                                Review &amp; merge
+                              </button>
+                              <button
+                                className="btn"
+                                style={{ padding: '4px 10px', fontSize: 11.5 }}
+                                onClick={() => dismissMergeRequest(r.id).then(() => flash('Merge request dismissed.'))}
+                              >
+                                Dismiss
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             {actionFeedback && (
               <div className="note" style={{ background: '#e3f7e9', color: '#16794b', borderColor: '#a3e6b7' }}>
@@ -1544,6 +1621,11 @@ export function AdminDashboard({ user }: { user: User }) {
         )}
 
         {/* TAB 4: CLOSED TRIAL REPOSITORY + AUDIT TRAIL */}
+        {adminTab === 'activity' && actionFeedback && (
+          <div className="note" style={{ background: '#e3f7e9', color: '#16794b', borderColor: '#a3e6b7' }}>
+            ✓ {actionFeedback}
+          </div>
+        )}
         {adminTab === 'activity' && (
           <ClaimedAddedSection
             claims={claims}
@@ -1551,6 +1633,7 @@ export function AdminDashboard({ user }: { user: User }) {
             addedSites={allAddedSites}
             closedTrials={closedTrials}
             onCloseTrial={(id, target) => setAdminClose({ id, target })}
+            onEdit={setTrialEdit}
           />
         )}
 
@@ -1674,6 +1757,22 @@ export function AdminDashboard({ user }: { user: User }) {
             setDeleteTarget(editTarget);
             setEditTarget(null);
           }}
+          onMerge={() => {
+            setMergeDialog({ keep: editTarget });
+            setEditTarget(null);
+          }}
+        />
+      )}
+
+      {mergeDialog && (
+        <MergeAccountsModal
+          admin={adminActor}
+          users={allUsers}
+          initialKeep={mergeDialog.keep}
+          initialDup={mergeDialog.dup}
+          requestId={mergeDialog.requestId}
+          onClose={() => setMergeDialog(null)}
+          onMerged={flash}
         />
       )}
 
@@ -1684,6 +1783,47 @@ export function AdminDashboard({ user }: { user: User }) {
           approvedPis={approvedDoctors}
           onClose={() => setDeleteTarget(null)}
           onDeleted={flash}
+        />
+      )}
+
+      {trialEdit && (
+        <SiteFormModal
+          badge={trialEdit.kind === 'trial' ? 'Admin · Edit submitted trial' : 'Admin · Edit added location'}
+          title="Correct location & contact"
+          subtitle={
+            trialEdit.kind === 'trial'
+              ? `${trialEdit.trial.briefTitle} · ${trialEdit.trial.nctId} · submitted by ${trialEdit.trial.submittedByName}`
+              : `${trialEdit.site.briefTitle} · ${trialEdit.site.nctId} · added by ${trialEdit.site.addedByName}`
+          }
+          initial={(() => {
+            const r = trialEdit.kind === 'trial' ? trialEdit.trial : trialEdit.site;
+            return {
+              facility: r.facility,
+              city: r.city,
+              state: r.state,
+              contactName: r.contactName,
+              contactPhone: r.contactPhone,
+              contactEmail: r.contactEmail,
+            };
+          })()}
+          submitLabel="Save correction"
+          note="The change is live on the Trial Finder straight away and recorded in the audit trail."
+          onSubmit={async (f) => {
+            const before = trialEdit.kind === 'trial' ? trialEdit.trial : trialEdit.site;
+            if (trialEdit.kind === 'trial') await updateSubmittedTrialSite(trialEdit.trial.nctId, f);
+            else await updateAddedSite(trialEdit.site.id, f);
+            const changed = (Object.keys(f) as Array<keyof SiteFields>)
+              .filter((k) => (before[k] ?? '').toString().trim() !== (f[k] ?? '').toString().trim())
+              .map((k) => `${k}: "${before[k] ?? ''}" → "${(f[k] ?? '').toString().trim()}"`);
+            await writeAudit(
+              adminActor,
+              'trial_edited',
+              `${before.nctId} · ${before.facility}`,
+              `${trialEdit.kind === 'trial' ? 'Submitted trial' : 'Added location'} · ${changed.join('; ') || 'no change'}`,
+            ).catch((e) => console.warn('[TrialWiz] audit write failed (trial edit):', e));
+            flash(`Saved the correction to ${before.nctId}.`);
+          }}
+          onClose={() => setTrialEdit(null)}
         />
       )}
 

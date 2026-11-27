@@ -6,6 +6,7 @@ import { useClosedTrials } from '../../hooks/useClosedTrials';
 import { useTrialCatalogue } from '../../hooks/useTrialCatalogue';
 import { ChangePasswordModal } from '../../components/ChangePasswordModal';
 import { EditAccountModal } from '../../components/EditAccountModal';
+import { MergeRequestModal } from './MergeRequestModal';
 import { addSiteToTrial, removeAddedSite, subscribeAddedSites, teamPiUidOf, updateAddedSite } from '../../services/addedSites';
 import { reopenTrial } from '../../services/closedTrials';
 import { subscribeHospitalPis } from '../../services/piAuthorization';
@@ -187,6 +188,7 @@ export function DoctorDashboard({ user, profile, readOnly = false, headerRight }
   const [siteEdit, setSiteEdit] = useState<SiteEdit | null>(null);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
+  const [mergeOpen, setMergeOpen] = useState(false);
   const [flashMsg, setFlashMsg] = useState<string | null>(null);
   const [addedSites, setAddedSites] = useState<AddedSite[]>([]);
   const [teamLog, setTeamLog] = useState<TeamApproval[]>([]);
@@ -293,9 +295,9 @@ export function DoctorDashboard({ user, profile, readOnly = false, headerRight }
   const teamPi = useMemo(
     () =>
       isDoctor
-        ? { name: profile.name, email: profile.email }
+        ? { name: profile.name, email: profile.email, otherEmails: profile.mergedEmails }
         : { name: profile.requestedDoctorName, email: profile.requestedDoctorEmail },
-    [isDoctor, profile.name, profile.email, profile.requestedDoctorName, profile.requestedDoctorEmail],
+    [isDoctor, profile.name, profile.email, profile.mergedEmails, profile.requestedDoctorName, profile.requestedDoctorEmail],
   );
   const teamPiLabel = isDoctor ? 'you' : teamPi.name || 'your Principal Investigator';
 
@@ -671,6 +673,14 @@ export function DoctorDashboard({ user, profile, readOnly = false, headerRight }
               </button>
               <button className="btn" style={{ fontSize: 12, padding: '4px 10px' }} onClick={() => setPwOpen(true)}>
                 🔑 Change password
+              </button>
+              <button
+                className="btn"
+                style={{ fontSize: 12, padding: '4px 10px' }}
+                onClick={() => setMergeOpen(true)}
+                title="Registered twice with different emails? Merge the other account into this one."
+              >
+                ⇄ Merge another account
               </button>
             </div>}
           </div>
@@ -1269,6 +1279,8 @@ export function DoctorDashboard({ user, profile, readOnly = false, headerRight }
       )}
 
       {pwOpen && <ChangePasswordModal user={user} onClose={() => setPwOpen(false)} onChanged={flash} />}
+
+      {mergeOpen && <MergeRequestModal profile={profile} onClose={() => setMergeOpen(false)} onSent={flash} />}
 
       {editProfileOpen && (
         <EditAccountModal account={profile} mode="self" onClose={() => setEditProfileOpen(false)} onSaved={flash} />

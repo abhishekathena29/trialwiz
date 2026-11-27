@@ -281,6 +281,9 @@ export function ClaimTrialModal({
         {err && <div className="login-err" style={{ margin: '12px 0' }}>{err}</div>}
 
         <form onSubmit={handleSave} className="claim-form">
+          <span className="req-legend">
+            Fields marked <span className="req">*</span> are required.
+          </span>
           {/* Location — the same NCT ID can run at many sites */}
           <div className="form-group">
             <label htmlFor="claim-site-select">

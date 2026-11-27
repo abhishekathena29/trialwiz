@@ -101,6 +101,9 @@ export function CreateAccountModal({ admin, approvedPis, onClose, onCreated }: P
         {err && <div className="login-err" style={{ margin: '12px 0' }}>{err}</div>}
 
         <form onSubmit={handleSubmit} className="claim-form">
+          <span className="req-legend">
+            Fields marked <span className="req">*</span> are required.
+          </span>
           <div className="form-group">
             <label htmlFor="acct-role">
               Account type <span className="req">*</span>

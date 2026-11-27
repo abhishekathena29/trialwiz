@@ -24,7 +24,11 @@ interface Row {
   status: string;
   closeId: string;
   closeTarget: CloseTarget;
+  /** What the Edit button opens — submitted trials and added locations only. */
+  editable?: EditTarget;
 }
+
+export type EditTarget = { kind: 'trial'; trial: SubmittedTrial } | { kind: 'location'; site: AddedSite };
 
 interface Props {
   claims: TrialClaim[];
@@ -32,6 +36,8 @@ interface Props {
   addedSites: AddedSite[];
   closedTrials: ClosedTrial[];
   onCloseTrial: (id: string, target: CloseTarget) => void;
+  /** Admin fixes a hospital name / city / contact someone typed wrongly. */
+  onEdit?: (target: EditTarget) => void;
 }
 
 /**
@@ -39,7 +45,7 @@ interface Props {
  * they added, and every location they added to an existing trial — who did it, when, and the
  * contact published. Searchable and filterable by type.
  */
-export function ClaimedAddedSection({ claims, submitted, addedSites, closedTrials, onCloseTrial }: Props) {
+export function ClaimedAddedSection({ claims, submitted, addedSites, closedTrials, onCloseTrial, onEdit }: Props) {
   const [kind, setKind] = useState<'all' | Kind>('all');
   const [search, setSearch] = useState('');
   const closedIds = useMemo(() => new Set(closedTrials.map((c) => c.id)), [closedTrials]);
@@ -77,6 +83,7 @@ export function ClaimedAddedSection({ claims, submitted, addedSites, closedTrial
         status: closedIds.has(id) ? 'closed' : t.listingStatus === 'retired' ? 'retired' : 'active',
         closeId: id,
         closeTarget: t,
+        editable: { kind: 'trial', trial: t },
       });
     }
     for (const a of addedSites) {
@@ -94,6 +101,7 @@ export function ClaimedAddedSection({ claims, submitted, addedSites, closedTrial
         status: closedIds.has(id) ? 'closed' : 'active',
         closeId: id,
         closeTarget: a,
+        editable: { kind: 'location', site: a },
       });
     }
     return out.sort((x, y) => (timestampMs(y.at) ?? 0) - (timestampMs(x.at) ?? 0));
@@ -161,7 +169,7 @@ export function ClaimedAddedSection({ claims, submitted, addedSites, closedTrial
                   <th>By</th>
                   <th>Public contact</th>
                   <th>When</th>
-                  <th style={{ textAlign: 'right' }}>Status</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -181,7 +189,17 @@ export function ClaimedAddedSection({ claims, submitted, addedSites, closedTrial
                     </td>
                     <td>{r.contact || '—'}</td>
                     <td>{formatTimestamp(r.at)}</td>
-                    <td style={{ textAlign: 'right' }}>
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      {onEdit && r.editable && (
+                        <button
+                          className="btn"
+                          style={{ padding: '4px 10px', fontSize: 11.5, marginRight: 6 }}
+                          onClick={() => onEdit(r.editable!)}
+                          title="Correct the hospital name, city or contact details"
+                        >
+                          Edit
+                        </button>
+                      )}
                       {r.status === 'closed' ? (
                         <span className="pill closed-pill">Closed</span>
                       ) : r.status === 'retired' ? (

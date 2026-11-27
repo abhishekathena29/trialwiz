@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { SiteFields } from '../../services/addedSites';
+import { HospitalInput } from '../../components/HospitalInput';
 import './Portal.css';
 
 interface Props {
@@ -63,11 +64,21 @@ export function SiteFormModal({ badge, title, subtitle, initial, submitLabel, no
         {err && <div className="login-err" style={{ margin: '12px 0' }}>{err}</div>}
 
         <form onSubmit={submit} className="claim-form">
+          <span className="req-legend">
+            Fields marked <span className="req">*</span> are required.
+          </span>
           <div className="form-group">
             <label htmlFor="site-facility">
               Hospital / site name <span className="req">*</span>
             </label>
-            <input id="site-facility" className="claim-input" value={f.facility} onChange={set('facility')} required />
+            <HospitalInput
+              id="site-facility"
+              className="claim-input"
+              value={f.facility}
+              onChange={(v) => setF((cur) => ({ ...cur, facility: v }))}
+              onPick={(h) => setF((cur) => ({ ...cur, city: h.city || cur.city, state: h.state || cur.state }))}
+              required
+            />
           </div>
           <div className="form-row">
             <div className="form-group half">

@@ -65,10 +65,12 @@ export interface DeletionChoices {
   data: 'transfer' | 'delete';
   /** Free-text reason for the audit trail, e.g. "duplicate of x@y". */
   reason?: string;
+  /** Let the same email sign up again (e.g. they registered under the wrong role). */
+  allowReuse?: boolean;
 }
 
 /** Firestore batches cap at 500 writes; commit in chunks. */
-class Writer {
+export class Writer {
   private ops: Array<(b: ReturnType<typeof writeBatch>) => void> = [];
   set(ref: DocumentReference, data: Record<string, unknown>) {
     this.ops.push((b) => b.set(ref, data));
@@ -213,6 +215,7 @@ export async function deleteAccountByAdmin(
     reason: (choices.reason ?? '').trim().slice(0, 300),
     deletedAt: serverTimestamp(),
     authDeleted: false,
+    allowReuse: Boolean(choices.allowReuse),
   });
   const audit = doc(collection(firestore, 'auditLog'));
   w.set(audit, {
@@ -229,12 +232,20 @@ export async function deleteAccountByAdmin(
   return summary.length ? summary.join('; ') : 'nothing else was linked to it';
 }
 
-/** Has an admin deleted this account? Checked at sign-in. */
-export async function isAccountDeleted(uid: string): Promise<boolean> {
-  if (!db) return false;
+/**
+ * Has an admin deleted this account? Checked at sign-in and sign-up.
+ *  - 'active'    — not deleted, or deleted with "may sign up again" and the person already has.
+ *  - 'reusable'  — deleted, but the admin let this email sign up again: no profile yet.
+ *  - 'blocked'   — deleted, email not released.
+ */
+export async function deletedAccountState(uid: string): Promise<'active' | 'reusable' | 'blocked'> {
+  if (!db) return 'active';
   try {
-    return (await getDoc(doc(db, DELETED_ACCOUNTS_COLLECTION, uid))).exists();
+    const tomb = await getDoc(doc(db, DELETED_ACCOUNTS_COLLECTION, uid));
+    if (!tomb.exists()) return 'active';
+    if (!tomb.data().allowReuse) return 'blocked';
+    return (await getDoc(doc(db, USERS, uid))).exists() ? 'active' : 'reusable';
   } catch {
-    return false;
+    return 'active';
   }
 }

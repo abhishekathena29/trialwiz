@@ -40,12 +40,15 @@ export function sameInvestigator(a: string | undefined, b: string | undefined): 
 export interface Investigator {
   name?: string;
   email?: string;
+  /** Emails of accounts merged into this one — still the same investigator. */
+  otherEmails?: string[];
 }
 
 /** Why a registry site is listed under this investigator, or null if it isn't. */
 export function siteMatchesInvestigator(site: Pick<TrialSite, 'contactName' | 'contactEmail'>, pi: Investigator): 'email' | 'name' | null {
-  const email = (pi.email ?? '').trim().toLowerCase();
-  if (email && (site.contactEmail ?? '').trim().toLowerCase() === email) return 'email';
+  const siteEmail = (site.contactEmail ?? '').trim().toLowerCase();
+  const emails = [pi.email, ...(pi.otherEmails ?? [])].map((e) => (e ?? '').trim().toLowerCase()).filter(Boolean);
+  if (siteEmail && emails.includes(siteEmail)) return 'email';
   if (pi.name && sameInvestigator(pi.name, site.contactName)) return 'name';
   return null;
 }
